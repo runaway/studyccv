@@ -1,0 +1,134 @@
+---- beta Matches (91 in 13 files) ----
+Ccv.h (lib): *   alpha * A * B + beta * C
+Ccv.h (lib): * whereas A, B, C are matrix, and alpha, beta are scalar.
+Ccv.h (lib): * @param beta The multiplication factor.
+Ccv.h (lib):void ccv_gemm(ccv_matrix_t* a, ccv_matrix_t* b, double alpha, ccv_matrix_t* c, double beta, int transpose, ccv_matrix_t** d, int type);
+Ccv.h (lib):	float alpha[3], beta;
+Ccv.h (lib):	float beta;
+Ccv.h (lib):	float beta[6];
+Ccv.h (lib):		float kappa; /**< [rnorm.kappa] As of b[i] = a[i] / (rnorm.kappa + rnorm.alpha * sum(a, i - rnorm.size / 2, i + rnorm.size / 2)) ^ rnorm.beta */
+Ccv.h (lib):		float beta; /**< [rnorm.beta] See **rnorm.kappa**. */
+Ccv_algebra.c (lib):void ccv_gemm(ccv_matrix_t* a, ccv_matrix_t* b, double alpha, ccv_matrix_t* c, double beta, int transpose, ccv_matrix_t** d, int type)
+Ccv_algebra.c (lib):			cblas_sgemm(CblasRowMajor, (transpose & CCV_A_TRANSPOSE) ? CblasTrans : CblasNoTrans, (transpose & CCV_B_TRANSPOSE) ? CblasTrans : CblasNoTrans, dd->rows, dd->cols, (transpose & CCV_A_TRANSPOSE) ? da->rows : da->cols, alpha, da->data.f32, da->cols, db->data.f32, db->cols, beta, dd->data.f32, dd->cols);
+Ccv_algebra.c (lib):			cblas_dgemm(CblasRowMajor, (transpose & CCV_A_TRANSPOSE) ? CblasTrans : CblasNoTrans, (transpose & CCV_B_TRANSPOSE) ? CblasTrans : CblasNoTrans, dd->rows, dd->cols, (transpose & CCV_A_TRANSPOSE) ? da->rows : da->cols, alpha, da->data.f64, da->cols, db->data.f64, db->cols, beta, dd->data.f64, dd->cols);
+Ccv_convnet.c (lib):	float beta = layer->net.rnorm.beta;
+Ccv_convnet.c (lib):						bp[j * ch + p * ch_per_partition + k] = v * powf(denom, -beta);
+Ccv_convnet.c (lib):						bp[j * ch + p * ch_per_partition + k] = v * powf(denom, -beta);
+Ccv_convnet.c (lib):	float beta = layer->net.rnorm.beta;
+Ccv_convnet.c (lib):						nom += -2 * alpha * beta * ap[j * ch + x + p * ch_per_partition] * np[j * ch + x + p * ch_per_partition] / dp[j * ch + x + p * ch_per_partition];
+Ccv_convnet.c (lib):					bp[j * ch + k + p * ch_per_partition] = mp[j * ch + k + p * ch_per_partition] * nom + ap[j * ch + k + p * ch_per_partition] * powf(dp[j * ch + k + p * ch_per_partition], -beta);
+Ccv_convnet.c (lib):			"output_size INTEGER, output_kappa REAL, output_alpha REAL, output_beta REAL, output_relu INTEGER);"
+Ccv_convnet.c (lib):			"output_size, output_kappa, output_alpha, output_beta, output_relu) VALUES "
+Ccv_convnet.c (lib):			"$output_size, $output_kappa, $output_alpha, $output_beta, $output_relu);"; // 18
+Ccv_convnet.c (lib):					sqlite3_bind_double(layer_params_insert_stmt, 18, layer->net.rnorm.beta);
+Ccv_convnet.c (lib):			"output_size, output_kappa, output_alpha, output_beta, output_relu FROM layer_params ORDER BY layer ASC;"; // 18
+Ccv_convnet.c (lib):						layer_param.output.rnorm.beta = sqlite3_column_double(layer_params_stmt, 16);
+Ccv_dpm.c (lib):		fprintf(w, "%a %a %a %a\n", root_classifier->beta, root_classifier->alpha[0], root_classifier->alpha[1], root_classifier->alpha[2]);
+Ccv_dpm.c (lib):		fscanf(r, "%f %f %f %f", &root_classifier[i].beta, &root_classifier[i].alpha[0], &root_classifier[i].alpha[1], &root_classifier[i].alpha[2]);
+Ccv_dpm.c (lib):		root_classifier->beta = linear->w[31 * rows * cols2c] * 2.0;
+Ccv_dpm.c (lib):		root_classifier->beta = linear->w[31 * rows * cols];
+Ccv_dpm.c (lib):	double score = root_classifier->beta;
+Ccv_dpm.c (lib):						_ccv_dpm_collect_feature_vector(v, f_ptr[x] + root_classifier->beta, x, y, pyr[j], pyr[j - next], dx, dy);
+Ccv_dpm.c (lib):					if (f_ptr[x] + root_classifier->beta > threshold)
+Ccv_dpm.c (lib):						_ccv_dpm_collect_feature_vector(v, f_ptr[x] + root_classifier->beta, x, y, pyr[j], pyr[j - next], dx, dy);
+Ccv_dpm.c (lib):	root_classifier->beta -= regz * root_classifier->beta;
+Ccv_dpm.c (lib):		root_classifier->beta += alpha * y * Cn * 2.0;
+Ccv_dpm.c (lib):		root_classifier->beta += alpha * y * Cn;
+Ccv_dpm.c (lib):	model->root[k].beta -= adjust;
+Ccv_dpm.c (lib):						if (f_ptr[x] + root->beta > params.threshold)
+Ccv_dpm.c (lib):							comp.classification.confidence = f_ptr[x] + root->beta;
+Ccv_dpm.c (lib):		fscanf(r, "%f %f %f %f", &root_classifier[i].beta, &root_classifier[i].alpha[0], &root_classifier[i].alpha[1], &root_classifier[i].alpha[2]);
+Ccv_icf.c (lib):	float c = feature->beta;
+Ccv_icf.c (lib):	feature->beta = 0;
+Ccv_icf.c (lib):			fprintf(w, "%d %a\n", feature->count, feature->beta);
+Ccv_icf.c (lib):			fscanf(r, "%d %a", &feature->count, &feature->beta);
+Ccv_icf.c (lib):		feature->beta = _ccv_icf_compute_threshold_between(feature, computed, positives, negatives, best.error_index, best.error_index + 1);
+Ccv_icf.c (lib):		feature->beta = -_ccv_icf_compute_threshold_between(feature, computed, positives, negatives, best.error_index, best.error_index + 1);
+Ccv_icf.c (lib):		feature->beta = _ccv_icf_compute_threshold_between(feature, computed, positives, negatives, best.error_index, best.error_index + 1);
+Ccv_icf.c (lib):		feature->beta = -_ccv_icf_compute_threshold_between(feature, computed, positives, negatives, best.error_index, best.error_index + 1);
+Ccv_icf.c (lib):			double beta = 1.0 / alpha;
+Ccv_icf.c (lib):				z.example_state[j].weight *= (z.example_state[j].correct) ? alpha : beta;
+Ccv_icf.c (lib):		fscanf(r, "%d %a", &weak_classifier->features[0].count, &weak_classifier->features[0].beta);
+Ccv_icf.c (lib):			fscanf(r, "%d %a", &weak_classifier->features[1].count, &weak_classifier->features[1].beta);
+Ccv_icf.c (lib):			fscanf(r, "%d %a", &weak_classifier->features[2].count, &weak_classifier->features[2].beta);
+Ccv_icf.c (lib):		fprintf(w, "%d %a\n", weak_classifier->features[0].count, weak_classifier->features[0].beta);
+Ccv_icf.c (lib):			fprintf(w, "%d %a\n", weak_classifier->features[1].count, weak_classifier->features[1].beta);
+Ccv_icf.c (lib):			fprintf(w, "%d %a\n", weak_classifier->features[2].count, weak_classifier->features[2].beta);
+Ccv_resample.c (lib):			unsigned int beta = (int)(ccv_max(sy + 1 - (dy + 1) * scale_y, 0.f) * 256);
+Ccv_resample.c (lib):			unsigned int beta1 = 256 - beta;
+Ccv_resample.c (lib):			if (beta <= 0)
+Ccv_resample.c (lib):					b_ptr[dx] = ccv_clamp((sum[dx] + buf[dx] * beta1) / inv_scale_256, 0, 255);
+Ccv_resample.c (lib):					sum[dx] = buf[dx] * beta;
+Ccv_resample.c (lib):			float beta = ccv_max(sy + 1 - (dy + 1) * scale_y, 0.f); \
+Ccv_resample.c (lib):			float beta1 = 1 - beta; \
+Ccv_resample.c (lib):			if (fabs(beta) < 1e-3) \
+Ccv_resample.c (lib):					_for_set(b_ptr, dx, sum[dx] + buf[dx] * beta1, 0); \
+Ccv_resample.c (lib):					sum[dx] = buf[dx] * beta; \
+Cifar-10.c (bin):					.beta = 0.75,
+Cifar-10.c (bin):					.beta = 0.75,
+Convnet.tests.c (test\unit):				.beta = 0.75,
+Convnet.tests.c (test\unit):				.beta = 0.75,
+Convnet.tests.c (test\unit):				.beta = 0.75,
+Convnet.tests.c (test\unit):				.beta = 0.75,
+Convnet.tests.c (test\unit):					.beta = 0.75,
+Cwc-backwards.c (bin\cuda):					.beta = 0.75,
+Cwc-backwards.c (bin\cuda):					.beta = 0.75,
+Cwc-bench.c (bin\cuda):					.beta = 0.75,
+Cwc-bench.c (bin\cuda):					.beta = 0.75,
+Cwc-bench.c (bin\cuda):					.beta = 0.75,
+Cwc-bench.c (bin\cuda):					.beta = 0.75,
+Cwc-bench.c (bin\cuda):					.beta = 0.75,
+Cwc-bench.c (bin\cuda):					.beta = 0.75,
+Index.html (site\0.6\lib\ccv-algebra):<pre><code>void ccv_gemm(ccv_matrix_t* a, ccv_matrix_t* b, double alpha, ccv_matrix_t* c, double beta, int transpose, ccv_matrix_t** d, int type)
+Index.html (site\0.6\lib\ccv-algebra):<pre><code>alpha * A * B + beta * C
+Index.html (site\0.6\lib\ccv-algebra):<p>whereas A, B, C are matrix, and alpha, beta are scalar.</p>
+Index.html (site\0.6\lib\ccv-algebra):  <li><strong>beta</strong>: the multiplication factor.</li>
+Index.html (site\0.6\lib\ccv-convnet):  <li><strong>rnorm.kappa</strong>: as of b[i] = a[i] / (rnorm.kappa + rnorm.alpha * sum(a, i - rnorm.size / 2, i + rnorm.size / 2)) ^ rnorm.beta</li>
+Index.html (site\0.6\lib\ccv-convnet):  <li><strong>rnorm.beta</strong>: see <strong>rnorm.kappa</strong>.</li>
+Sqlite3.c (lib\3rdparty\sqlite3):SQLITE_PRIVATE VdbeOp *sqlite3VdbeTakeOpArray(Vdbe*, int*, int*);
+Sqlite3.c (lib\3rdparty\sqlite3):SQLITE_PRIVATE VdbeOp *sqlite3VdbeTakeOpArray(Vdbe *p, int *pnOp, int *pnMaxArg){
+Sqlite3.c (lib\3rdparty\sqlite3):      pProgram->aOp = sqlite3VdbeTakeOpArray(v, &pProgram->nOp, &pTop->nMaxArg);
+---- coordinatedescent Matches (0 in 0 files) ----
+---- coordinate descent Matches (0 in 0 files) ----
+---- coordinate Matches (42 in 9 files) ----
+Ccv.h (lib): * @param y y coordinate.
+Ccv.h (lib): * @param x x coordinate.
+Ccv.h (lib): * @param x The x coordinate offset.
+Ccv.h (lib): * @param x_type The type of output x coordinate offset, if 0, ccv will default to CCV_32S | CCV_C1.
+Ccv.h (lib): * @param y The y coordinate offset.
+Ccv.h (lib): * @param y_type The type of output x coordinate offset, if 0, ccv will default to CCV_32S | CCV_C1.
+Ccv_classic.c (lib):					/* it is a little different from the Canny original paper because we adopted the coordinate system of
+Ccv_classic.c (lib):					 * we compare with north-west and south-east (in traditional coordinate system sense, the same if we
+Ccv_dpm.c (lib):			/* TODO: coordinate-descent for lsvm */
+Ccv_dpm.c (lib):			PRINT(CCV_CLI_INFO, "optimizing root mixture model with coordinate-descent approach\n");
+Ccv_dpm.c (lib):			PRINT(CCV_CLI_INFO, "components == 1, skipped coordinate-descent to optimize root mixture model\n");
+Ccv_internal.h (lib):    Suppose that the task is to sort points by ascending of y coordinates and if
+Index.html (site\0.6\doc\doc-tld):<p>It will output each tracking coordinates for each frame.</p>
+Index.html (site\0.6\lib\ccv-numeric):  <li><strong>x</strong>: the x coordinate offset.</li>
+Index.html (site\0.6\lib\ccv-numeric):  <li><strong>x_type</strong>: the type of output x coordinate offset, if 0, ccv will default to CCV_32S | CCV_C1.</li>
+Index.html (site\0.6\lib\ccv-numeric):  <li><strong>y</strong>: the y coordinate offset.</li>
+Index.html (site\0.6\lib\ccv-numeric):  <li><strong>y_type</strong>: the type of output x coordinate offset, if 0, ccv will default to CCV_32S | CCV_C1.</li>
+Index.html (site\0.6\lib\ccv-serve):  <li><strong>‘x’</strong>: the initial tracking rectangle’s top left coordinate.</li>
+Index.html (site\0.6\lib\ccv-serve):  <li><strong>‘y’</strong>: the initial tracking rectangle’s top left coordinate.</li>
+Index.html (site\0.6\lib\ccv-util):  <li><strong>y</strong>: y coordinate.</li>
+Index.html (site\0.6\lib\ccv-util):  <li><strong>x</strong>: x coordinate.</li>
+Sqlite3.c (lib\3rdparty\sqlite3):** normally coordinate their activities, but we do need to coordinate the
+Sqlite3.c (lib\3rdparty\sqlite3):** in order to coordinate access between separate database connections
+Sqlite3.c (lib\3rdparty\sqlite3):** Find the current time (in Universal Coordinated Time).  Write into *piNow
+Sqlite3.c (lib\3rdparty\sqlite3):** Find the current time (in Universal Coordinated Time).  Write the
+Sqlite3.c (lib\3rdparty\sqlite3):** database file to coordinate safe, concurrent access by multiple readers
+Sqlite3.c (lib\3rdparty\sqlite3):** Find the current time (in Universal Coordinated Time).  Write into *piNow
+Sqlite3.c (lib\3rdparty\sqlite3):** Find the current time (in Universal Coordinated Time).  Write the
+Sqlite3.c (lib\3rdparty\sqlite3):**      of 4-byte coordinates. For leaf nodes the integer is the rowid
+Sqlite3.c (lib\3rdparty\sqlite3):** only deal with integer coordinates.  No floating point operations
+Sqlite3.c (lib\3rdparty\sqlite3):  typedef sqlite3_int64 RtreeDValue;       /* High accuracy coordinate */
+Sqlite3.c (lib\3rdparty\sqlite3):  typedef int RtreeValue;                  /* Low accuracy coordinate */
+Sqlite3.c (lib\3rdparty\sqlite3):  typedef double RtreeDValue;              /* High accuracy coordinate */
+Sqlite3.c (lib\3rdparty\sqlite3):  typedef float RtreeValue;                /* Low accuracy coordinate */
+Sqlite3.c (lib\3rdparty\sqlite3):** supported cell size is 48 bytes (8 byte rowid + ten 4 byte coordinates).
+Sqlite3.c (lib\3rdparty\sqlite3):  int iCoord;                     /* Index of constrained coordinate */
+Sqlite3.c (lib\3rdparty\sqlite3):** Return coordinate iCoord from cell iCell in node pNode.
+Sqlite3.c (lib\3rdparty\sqlite3):** The second of each pair of bytes identifies the coordinate column
+Sqlite3.c (lib\3rdparty\sqlite3):** to which the constraint applies. The leftmost coordinate column
+Sqlite3.c (lib\3rdparty\sqlite3):    /* Populate the cell.aCoord[] array. The first coordinate is azData[3]. */
+Sqlite3.c (lib\3rdparty\sqlite3):** <num-dimension>*2 coordinates.

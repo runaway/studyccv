@@ -1393,6 +1393,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 			}
 		}
 
+		// 计算平均包围盒
 		// calculate average bounding box
 		for(i = 0; i < ncomp; i++)
 			if(comps[i].neighbors)

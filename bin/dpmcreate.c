@@ -91,7 +91,9 @@ int main(int argc, char** argv)
 		.grayscale = 0,
 		.discard_estimating_constant = 1,
 	};
+	
 	int i, k;
+	
 	while (getopt_long_only(argc, argv, "", dpm_options, &k) != -1)
 	{
 		switch (k)
@@ -162,6 +164,7 @@ int main(int argc, char** argv)
 				break;
 		}
 	}
+	
 	assert(positive_list != 0);
 	assert(background_list != 0);
 	assert(working_dir != 0);
@@ -179,17 +182,21 @@ int main(int argc, char** argv)
 	char** posfiles = (char**)ccmalloc(sizeof(char*) * capacity);
 	ccv_rect_t* bboxes = (ccv_rect_t*)ccmalloc(sizeof(ccv_rect_t) * capacity);
 	int dirlen = (base_dir != 0) ? strlen(base_dir) + 1 : 0;
+	
 	while (fscanf(r0, "%s %d %d %d %d", file, &x, &y, &width, &height) != EOF)
 	{
 		posfiles[size] = (char*)ccmalloc(1024);
+		
 		if (base_dir != 0)
 		{
 			strncpy(posfiles[size], base_dir, 1024);
 			posfiles[size][dirlen - 1] = '/';
 		}
+		
 		strncpy(posfiles[size] + dirlen, file, 1024 - dirlen);
 		bboxes[size] = ccv_rect(x, y, width, height);
 		++size;
+		
 		if (size >= capacity)
 		{
 			capacity *= 2;
@@ -203,19 +210,24 @@ int main(int argc, char** argv)
 	ssize_t read;
 	capacity = 32, size = 0;
 	char** bgfiles = (char**)ccmalloc(sizeof(char*) * capacity);
+
 	while ((read = getline(&file, &len, r1)) != -1)
 	{
 		while(read > 1 && isspace(file[read - 1]))
 			read--;
+
 		file[read] = 0;
 		bgfiles[size] = (char*)ccmalloc(1024);
+
 		if (base_dir != 0)
 		{
 			strncpy(bgfiles[size], base_dir, 1024);
 			bgfiles[size][dirlen - 1] = '/';
 		}
+
 		strncpy(bgfiles[size] + dirlen, file, 1024 - dirlen);
 		++size;
+
 		if (size >= capacity)
 		{
 			capacity *= 2;
@@ -228,13 +240,18 @@ int main(int argc, char** argv)
 
 	// ÑµÁ·DPM»ìºÏÄ£ÐÍ
 	ccv_dpm_mixture_model_new(posfiles, bboxes, posnum, bgfiles, bgnum, negative_count, working_dir, params);
+
 	for (i = 0; i < posnum; i++)
 		free(posfiles[i]);
+
 	ccfree(posfiles);
 	ccfree(bboxes);
+
 	for (i = 0; i < bgnum; i++)
 		free(bgfiles[i]);
+
 	ccfree(bgfiles);
 	ccv_disable_cache();
+
 	return 0;
 }

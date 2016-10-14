@@ -807,28 +807,39 @@ static double _ccv_dpm_vector_score(ccv_dpm_mixture_model_t* model, ccv_dpm_feat
 	if (v->id < 0 || v->id >= model->count)
 		return 0;
 	ccv_dpm_root_classifier_t* root_classifier = model->root + v->id;
+
+	// b是为了component之间对齐而设的rootoffset
 	double score = root_classifier->beta;
 	int i, k, ch = CCV_GET_CHANNEL(v->root.w->type);
 	assert(ch == 31);
 	float *vptr = v->root.w->data.f32;
 	float *wptr = root_classifier->root.w->data.f32;
+	
 	for (i = 0; i < v->root.w->rows * v->root.w->cols * ch; i++)
 		score += wptr[i] * vptr[i];
+
 	assert(v->count == root_classifier->count || (v->count == 0 && v->part == 0));
 
+	// 
 	for (k = 0; k < v->count; k++)
 	{
 		ccv_dpm_part_classifier_t* part_classifier = root_classifier->part + k;
 		ccv_dpm_part_classifier_t* part_vector = v->part + k;
+
+		// (dx,dy)为偏移向量,di为偏移向量(dx,dy,dxx,dyy),PhiD(dx,dy)为偏移的Cost权值 
+		// 比如PhiD(dx,dy) = (0,0,1,1),则di dp PhiD(dx,dy)即为最普遍的欧氏距离。这一步称为距离变换，即transformed response
 		score -= part_classifier->dx * part_vector->dx;
 		score -= part_classifier->dxx * part_vector->dxx;
 		score -= part_classifier->dy * part_vector->dy;
 		score -= part_classifier->dyy * part_vector->dyy;
 		vptr = part_vector->w->data.f32;
 		wptr = part_classifier->w->data.f32;
+
+		// 中间是n个partfilter（前面称之为子模型）的得分。
 		for (i = 0; i < part_vector->w->rows * part_vector->w->cols * ch; i++)
 			score += wptr[i] * vptr[i];
 	}
+	
 	return score;
 }
 

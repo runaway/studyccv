@@ -1446,7 +1446,8 @@ typedef struct {
 	ccv_comp_t part[CCV_DPM_PART_MAX];
 } ccv_root_comp_t;
 
-typedef struct {
+typedef struct 
+{
 	ccv_dense_matrix_t* w;
 	double dx, dy, dxx, dyy;
 	int x, y, z;
@@ -1454,14 +1455,16 @@ typedef struct {
 	float alpha[6];
 } ccv_dpm_part_classifier_t;
 
-typedef struct {
+typedef struct 
+{
 	int count;
 	ccv_dpm_part_classifier_t root;
 	ccv_dpm_part_classifier_t* part;
 	float alpha[3], beta;
 } ccv_dpm_root_classifier_t;
 
-typedef struct {
+typedef struct 
+{
 	int count;
 	ccv_dpm_root_classifier_t* root;
 } ccv_dpm_mixture_model_t;

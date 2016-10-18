@@ -625,10 +625,12 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 		PRINT(CCV_CLI_ERROR, " - ERROR: cannot pass check parameter: %s\n", err);
 		exit(-1);
 	}
+	
 	struct model* linear = train(&prob, &linear_parameters);
 	assert(linear != 0);
 	PRINT(CCV_CLI_INFO, " - model->label[0]: %d, model->nr_class: %d, model->nr_feature: %d\n", linear->label[0], linear->nr_class, linear->nr_feature);
 
+	// Data 3: Initial model Beta
 	if (symmetric)
 	{
 		float* wptr = root_classifier->root.w->data.f32;
@@ -903,9 +905,13 @@ static ccv_dpm_feature_vector_t* _ccv_dpm_collect_best(ccv_dense_matrix_t* image
 	if (scale_upto < 0)
 		return 0;
 	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
+
+
 	_ccv_dpm_feature_pyramid(image, pyr, scale_upto, params.interval);
+
 	float best = -FLT_MAX;
 	ccv_dpm_feature_vector_t* v = 0;
+
 	for (i = 0; i < model->count; i++)
 	{
 		ccv_dpm_root_classifier_t* root_classifier = model->root + i;
@@ -1046,25 +1052,37 @@ static void _ccv_dpm_collect_from_background(ccv_array_t* av, gsl_rng* rng, char
 {
 	int i, j;
 	int* order = (int*)ccmalloc(sizeof(int) * bgnum);
+	
 	for (i = 0; i < bgnum; i++)
 		order[i] = i;
+	
 	gsl_ran_shuffle(rng, order, bgnum, sizeof(int));
+
+	// 8: for j := 1 to m do
 	for (i = 0; i < bgnum; i++)
 	{
 		FLUSH(CCV_CLI_INFO, " - collecting negative examples -- (%d%%)", av->rnum * 100 / params.negative_cache_size);
 		ccv_dense_matrix_t* image = 0;
 		ccv_read(bgfiles[order[i]], &image, (params.grayscale ? CCV_IO_GRAY : 0) | CCV_IO_ANY_FILE);
+
+		// 10: Add detect-all(Beta, Jj, -(1 + Delta)) to Fn
 		ccv_array_t* at = _ccv_dpm_collect_all(rng, image, model, params.detector, threshold);
+
 		if (at)
 		{
 			for (j = 0; j < at->rnum; j++)
 				ccv_array_push(av, ccv_array_get(at, j));
 			ccv_array_free(at);
 		}
+
 		ccv_matrix_free(image);
+
+		// 9: if |Fn >= memory-limit| then break 
 		if (av->rnum >= params.negative_cache_size)
 			break;
 	}
+
+	// 11: end
 	ccfree(order);
 }
 
@@ -1080,13 +1098,18 @@ static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t
 		FLUSH(CCV_CLI_INFO, " - collecting responses from positive examples : %d%%", i * 100 / posnum);
 		ccv_dense_matrix_t* image = 0;
 		ccv_read(posfiles[i], &image, (params.grayscale ? CCV_IO_GRAY : 0) | CCV_IO_ANY_FILE);
+
 		posv[i] = _ccv_dpm_collect_best(image, model, bboxes[i], params.include_overlap, params.detector);
+
 		if (posv[i])
 			++num_per_model[posv[i]->id];
 		ccv_matrix_free(image);
 	}
+
+	// 这将预测新的x, y和scale
 	// this will estimate new x, y, and scale
 	PRINT(CCV_CLI_INFO, "\n - linear regression for x, y, and scale drifting\n");
+
 	for (i = 0; i < model->count; i++)
 	{
 		ccv_dpm_root_classifier_t* root_classifier = model->root + i;
@@ -1098,17 +1121,21 @@ static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t
 		gsl_vector* z = gsl_vector_alloc(root_classifier->count * 2 + 1);
 		gsl_matrix* cov = gsl_matrix_alloc(root_classifier->count * 2 + 1, root_classifier->count * 2 + 1);;
 		c = 0;
+		
 		for (j = 0; j < posnum; j++)
 		{
 			ccv_dpm_feature_vector_t* v = posv[j];
+
 			if (v && v->id == i)
 			{
 				gsl_matrix_set(X, c, 0, 1.0);
+
 				for (k = 0; k < v->count; k++)
 				{
 					gsl_matrix_set(X, c, k * 2 + 1, v->part[k].dx);
 					gsl_matrix_set(X, c, k * 2 + 2, v->part[k].dy);
 				}
+
 				ccv_rect_t bbox = bboxes[j];
 				gsl_vector_set(y[0], c, (bbox.x + bbox.width * 0.5) / (v->scale_x * CCV_DPM_WINDOW_SIZE) - v->x);
 				gsl_vector_set(y[1], c, (bbox.y + bbox.height * 0.5) / (v->scale_y * CCV_DPM_WINDOW_SIZE) - v->y);
@@ -1116,12 +1143,15 @@ static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t
 				++c;
 			}
 		}
+		
 		gsl_multifit_linear_workspace* workspace = gsl_multifit_linear_alloc(num_per_model[i], root_classifier->count * 2 + 1);
 		double chisq;
+		
 		for (j = 0; j < 3; j++)
 		{
 			gsl_multifit_linear(X, y[j], z, cov, &chisq, workspace);
 			root_classifier->alpha[j] = params.discard_estimating_constant ? 0 : gsl_vector_get(z, 0);
+
 			for (k = 0; k < root_classifier->count; k++)
 			{
 				ccv_dpm_part_classifier_t* part_classifier = root_classifier->part + k;
@@ -1129,6 +1159,7 @@ static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t
 				part_classifier->alpha[j * 2 + 1] = gsl_vector_get(z, k * 2 + 2);
 			}
 		}
+		
 		gsl_multifit_linear_free(workspace);
 		gsl_matrix_free(cov);
 		gsl_vector_free(z);
@@ -1137,9 +1168,11 @@ static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t
 		gsl_vector_free(y[2]);
 		gsl_matrix_free(X);
 	}
+	
 	for (i = 0; i < posnum; i++)
 		if (posv[i])
 			_ccv_dpm_feature_vector_free(posv[i]);
+		
 	ccfree(posv);
 }
 
@@ -1150,17 +1183,22 @@ static void _ccv_dpm_regularize_mixture_model(ccv_dpm_mixture_model_t* model, in
 	int ch = CCV_GET_CHANNEL(root_classifier->root.w->type);
 	ccv_make_matrix_mutable(root_classifier->root.w);
 	float *wptr = root_classifier->root.w->data.f32;
+
 	for (i = 0; i < root_classifier->root.w->rows * root_classifier->root.w->cols * ch; i++)
 		wptr[i] -= regz * wptr[i];
+
 	ccv_make_matrix_immutable(root_classifier->root.w);
 	root_classifier->beta -= regz * root_classifier->beta;
+	
 	for (k = 0; k < root_classifier->count; k++)
 	{
 		ccv_dpm_part_classifier_t* part_classifier = root_classifier->part + k;
 		ccv_make_matrix_mutable(part_classifier->w);
 		wptr = part_classifier->w->data.f32;
+
 		for (i = 0; i < part_classifier->w->rows * part_classifier->w->cols * ch; i++)
 			wptr[i] -= regz * wptr[i];
+
 		ccv_make_matrix_immutable(part_classifier->w);
 		part_classifier->dx -= regz * part_classifier->dx;
 		part_classifier->dxx -= regz * part_classifier->dxx;
@@ -1205,6 +1243,7 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 	{
 		for (i = 0; i < v->root.w->rows * v->root.w->cols * ch; i++)
 			wptr[i] += alpha * y * Cn * vptr[i];
+		
 		root_classifier->beta += alpha * y * Cn;
 	}
 	
@@ -1226,6 +1265,7 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 		part_classifier->dyy = ccv_max(part_classifier->dyy, 0.01);
 		vptr = part_vector->w->data.f32;
 		wptr = part_classifier->w->data.f32;
+
 		if (symmetric)
 		{
 			// 2x converge on everything for symmetric feature
@@ -1237,6 +1277,7 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 				part_classifier->dy -= alpha * y * Cn * part_vector->dy;
 				part_classifier->dyy -= alpha * y * Cn * part_vector->dyy;
 				part_classifier->dyy = ccv_max(part_classifier->dyy, 0.01);
+
 				for (i = 0; i < part_vector->w->rows; i++)
 				{
 					for (j = 0; j < part_vector->w->cols; j++)
@@ -1245,6 +1286,7 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 							wptr[j * ch + c] += alpha * y * Cn * vptr[j * ch + c];
 							wptr[j * ch + c] += alpha * y * Cn * vptr[(part_vector->w->cols - 1 - j) * ch + _ccv_dpm_sym_lut[c]];
 						}
+						
 					vptr += part_vector->w->cols * ch;
 					wptr += part_classifier->w->cols * ch;
 				}
@@ -1259,6 +1301,7 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 				other_part_classifier->dy -= alpha * y * Cn * part_vector->dy;
 				other_part_classifier->dyy -= alpha * y * Cn * part_vector->dyy;
 				other_part_classifier->dyy = ccv_max(other_part_classifier->dyy, 0.01);
+
 				for (i = 0; i < part_vector->w->rows; i++)
 				{
 					for (j = 0; j < part_vector->w->cols * ch; j++)
@@ -1266,13 +1309,16 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 					vptr += part_vector->w->cols * ch;
 					wptr += part_classifier->w->cols * ch;
 				}
+				
 				vptr = part_vector->w->data.f32;
 				wptr = other_part_classifier->w->data.f32;
+				
 				for (i = 0; i < part_vector->w->rows; i++)
 				{
 					for (j = 0; j < part_vector->w->cols; j++)
 						for (c = 0; c < ch; c++)
 							wptr[j * ch + c] += alpha * y * Cn * vptr[(part_vector->w->cols - 1 - j) * ch + _ccv_dpm_sym_lut[c]];
+
 					vptr += part_vector->w->cols * ch;
 					wptr += other_part_classifier->w->cols * ch;
 				}
@@ -1815,13 +1861,13 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 		PRINT(CCV_CLI_INFO, "root mixture model initialization corrupted, reboot\n");
 		ccv_array_t** posex = (ccv_array_t**)alloca(sizeof(ccv_array_t*) * params.components);
 
-		// 
+		// Data 1: Positive Examples P = {(I1, B1), ..., (In, Bn)} 
 		for (i = 0; i < params.components; i++)
 			posex[i] = _ccv_dpm_summon_examples_by_rectangle(posfiles, bboxes, posnum, i, rows[i], cols[i], params.grayscale);
 		PRINT(CCV_CLI_INFO, "\n");
 		ccv_array_t** negex = (ccv_array_t**)alloca(sizeof(ccv_array_t*) * params.components);
 
-		// 
+		// Data 2: Negitive Images N = {J1, ... Jm} 
 		_ccv_dpm_collect_examples_randomly(rng, negex, bgfiles, bgnum, negnum, params.components, rows, cols, params.grayscale);
 		PRINT(CCV_CLI_INFO, "\n");
 		int* neglabels = (int*)ccmalloc(sizeof(int) * negex[0]->rnum);
@@ -1836,6 +1882,7 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 			PRINT(CCV_CLI_INFO, "initializing root mixture model for model %d(%d)\n", i + 1, params.components);
 
 			// 初始化根分类器
+			// Data 3: Initial model Beta
 			_ccv_dpm_initialize_root_classifier(rng, root_classifier, i, mnum[i], poslabels, posex[i], neglabels, negex[i], params.C, params.symmetric, params.grayscale);
 		}
 
@@ -1932,11 +1979,15 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 	// 读取梯度下降过程
 	_ccv_dpm_read_gradient_descent_progress(&c, &d, gradient_progress_checkpoint);
 
+	// 2: for relabel := 1 to num-relabel do 
 	for (; c < params.relabels; c++)
 	{
 		double regz_rate = params.C;
+
+		// 3: Fp := 0
 		ccv_dpm_mixture_model_t* _model;
 
+		// 3-6就对于MI-SVM的第一步:在正样本集中优化
 		// 读取正样本特征向量
 		if (0 == _ccv_dpm_read_positive_feature_vectors(posv, posnum, feature_vector_checkpoint))
 		{
@@ -1946,14 +1997,17 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 		{
 			FLUSH(CCV_CLI_INFO, " - collecting responses from positive examples : 0%%");
 
+			// 4: for i := 1 to n do
 			for (i = 0; i < posnum; i++)
 			{
 				FLUSH(CCV_CLI_INFO, " - collecting responses from positive examples : %d%%", i * 100 / posnum);
 				ccv_dense_matrix_t* image = 0;
 				ccv_read(posfiles[i], &image, (params.grayscale ? CCV_IO_GRAY : 0) | CCV_IO_ANY_FILE);
+
+				// 5: Add detect-best(Beta, Ii, Bi) to Fp
 				posv[i] = _ccv_dpm_collect_best(image, model, bboxes[i], params.include_overlap, params.detector);
 				ccv_matrix_free(image);
-			}
+			} // 6: end
 			
 			FLUSH(CCV_CLI_INFO, " - collecting responses from positive examples : 100%%\n");
 			_ccv_dpm_write_positive_feature_vectors(posv, posnum, feature_vector_checkpoint);
@@ -1974,6 +2028,9 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 		params.detector.threshold = 0;
 
 		// 数据挖掘主循环
+		// 现在说下Data-minig。作者为什么不直接优化，还搞个Data-minig干嘛呢？因为，负样本数目巨大，Version3中用到的总样本数为2^28，其中Pos样本数目占的比例特别低，负样本太多，直接导致优化过程很慢，因为很多负样本远离分界面对于优化几乎没有帮助。Data-minig的作用就是去掉那些对优化作用很小的Easy-examples保留靠近分界面的Hard-examples。分别对应13和10。
+		// data-minings : how many data mining procedures are needed for discovering hard examples [DEFAULT TO 50]
+		// 7: for data_mining := 1 to num_mining do
 		for (; d < params.data_minings; d++)
 		{
 			// cache用完，重新收集
@@ -1985,6 +2042,7 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 			{
 				ccv_array_t* av = ccv_array_new(sizeof(ccv_dpm_feature_vector_t*), 64, 0);
 
+				// 
 				for (j = 0; j < negv->rnum; j++)
 				{
 					ccv_dpm_feature_vector_t* v = *(ccv_dpm_feature_vector_t**)ccv_array_get(negv, j);
@@ -2011,6 +2069,7 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 			if (negv->rnum < params.negative_cache_size)
 			{
 				// 从背景收集负样本
+				// 8~11 8: for j := 1 to m do 
 				_ccv_dpm_collect_from_background(negv, rng, bgfiles, bgnum, model, params, 0);
 			}
 			
@@ -2039,12 +2098,15 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 
 			for (i = 1; i < model->count; i++)
 				PRINT(CCV_CLI_INFO, ", %d", negvnum[i]);
+			
 			PRINT(CCV_CLI_INFO, "\n");
 			previous_positive_loss = previous_negative_loss = 0;
 			uint64_t elapsed_time = _ccv_dpm_time_measure();
 			assert(negv->rnum < params.negative_cache_size + 64);
 
-
+			// 12就对应了MI-SVM的第二步:优化SVM模型
+			// 直接用了梯度下降法，求解最优模型β
+			// 12: Beta := gradient-descent(Fp union Fn)
 			for (t = 0; t < params.iterations; t++)
 			{
 				// model->count == params.components
@@ -2054,11 +2116,14 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 					if (negvnum[p] <= ccv_max(params.negative_cache_size / (model->count * 3), ccv_max(REGQ, MINI_BATCH)) ||
 						posvnum[p] <= ccv_max(REGQ, MINI_BATCH))
 						continue;
+					
 					double pos_weight = sqrt((double)negvnum[p] / posvnum[p] * params.balance); // positive weight
 					double neg_weight = sqrt((double)posvnum[p] / negvnum[p] / params.balance); // negative weight
 					_model = _ccv_dpm_model_copy(model);
+					
 					for (i = 0; i < posnum + negv->rnum; i++)
 						order[i] = i;
+					
 					gsl_ran_shuffle(rng, order, posnum + negv->rnum, sizeof(int));
 					int l = 0;
 					
@@ -2072,7 +2137,8 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 								continue;
 							double score = _ccv_dpm_vector_score(model, posv[k]); // the loss for mini-batch method (computed on model)
 							assert(!isnan(score));
-							
+
+							// 12: Beta := gradient-descent(Fp)
 							if (score <= 1)
 								_ccv_dpm_stochastic_gradient_descent(_model, posv[k], 1, alpha * pos_weight, regz_rate, params.symmetric);
 						} 
@@ -2086,13 +2152,17 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 							double score = _ccv_dpm_vector_score(model, v);
 							
 							assert(!isnan(score));
+
+							// 12: Beta := gradient-descent(Fn)
 							if (score >= -1)
 								_ccv_dpm_stochastic_gradient_descent(_model, v, -1, alpha * neg_weight, regz_rate, params.symmetric);
 						}
 						
 						++l;
+						
 						if (l % REGQ == REGQ - 1)
 							_ccv_dpm_regularize_mixture_model(_model, p, 1.0 - pow(1.0 - alpha / (double)((posvnum[p] + negvnum[p]) * (!!params.symmetric + 1)), REGQ));
+
 						if (l % MINI_BATCH == MINI_BATCH - 1)
 						{
 							// mimicking mini-batch way of doing things
@@ -2102,7 +2172,11 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 							_model = _ccv_dpm_model_copy(model);
 						}
 					}
-					_ccv_dpm_regularize_mixture_model(_model, p, 1.0 - pow(1.0 - alpha / (double)((posvnum[p] + negvnum[p]) * (!!params.symmetric + 1)), (((posvnum[p] + negvnum[p]) % REGQ) + 1) % (REGQ + 1)));
+
+					// (ccv_dpm_mixture_model_t* model, int i, double regz)
+					_ccv_dpm_regularize_mixture_model(_model, 
+												      p, 
+												      1.0 - pow(1.0 - alpha / (double)((posvnum[p] + negvnum[p]) * (!!params.symmetric + 1)), (((posvnum[p] + negvnum[p]) % REGQ) + 1) % (REGQ + 1)));
 					_ccv_dpm_mixture_model_cleanup(model);
 					ccfree(model);
 					model = _model;
@@ -2190,6 +2264,7 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 		for (i = 0; i < posnum; i++)
 			if (posv[i])
 				_ccv_dpm_feature_vector_free(posv[i]);
+			
 		remove(feature_vector_checkpoint);
 	}
 	
@@ -2206,7 +2281,12 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 	remove(neg_vector_checkpoint);
 	ccfree(order);
 	ccfree(posv);
+
+	// 用线性回归预测根矩形
 	PRINT(CCV_CLI_INFO, "root rectangle prediction with linear regression\n");
+	
+	// 预测新的x, y和scale
+	// Result: New model Beta
 	_ccv_dpm_initialize_root_rectangle_estimator(model, posfiles, bboxes, posnum, params);
 	_ccv_dpm_write_checkpoint(model, 1, checkpoint);
 	PRINT(CCV_CLI_INFO, "done\n");

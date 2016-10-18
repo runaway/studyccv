@@ -1209,10 +1209,24 @@ static void _ccv_dpm_regularize_mixture_model(ccv_dpm_mixture_model_t* model, in
 	}
 }
 
-static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model, ccv_dpm_feature_vector_t* v, double y, double alpha, double Cn, int symmetric)
+/*
+随机梯度下降法优化流程
+1. Let AlphaT be the learning for iteration t
+2. Let i be a random example
+3. Let Zi = argmax (Beta dp Phi(Xi, z))
+4. If Yi * Fbeta(Xi) = Yi * (Beta dp Phi(Xi, Zi)) >= 1, set Beta := Beta - AlphaT * Beta
+5. Else Beta := Beta - AlphaT * (Beta - Cn * Yi * Phi(Xi, Zi))
+*/
+static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model, 
+												 ccv_dpm_feature_vector_t* v, 
+												 double y, 
+												 double alpha, 
+												 double Cn, 
+												 int symmetric)
 {
 	if (v->id < 0 || v->id >= model->count)
 		return;
+	
 	ccv_dpm_root_classifier_t* root_classifier = model->root + v->id;
 	int i, j, k, c, ch = CCV_GET_CHANNEL(v->root.w->type);
 	assert(ch == 31);
@@ -1227,11 +1241,14 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 		for (i = 0; i < v->root.w->rows; i++)
 		{
 			for (j = 0; j < v->root.w->cols; j++)
+			{
 				for (c = 0; c < ch; c++)
 				{
 					wptr[j * ch + c] += alpha * y * Cn * vptr[j * ch + c];
 					wptr[j * ch + c] += alpha * y * Cn * vptr[(v->root.w->cols - 1 - j) * ch + _ccv_dpm_sym_lut[c]];
 				}
+			}
+			
 			vptr += v->root.w->cols * ch;
 			wptr += root_classifier->root.w->cols * ch;
 		}
@@ -1306,6 +1323,7 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 				{
 					for (j = 0; j < part_vector->w->cols * ch; j++)
 						wptr[j] += alpha * y * Cn * vptr[j];
+					
 					vptr += part_vector->w->cols * ch;
 					wptr += part_classifier->w->cols * ch;
 				}
@@ -1709,6 +1727,22 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 	return model;
 }
 
+/*
+提下各阶段的工作，主要是论文中没有的Latent 变量分析：
+Phase1:是传统的SVM训练过程，与HOG算法一致。作者是随机将正样本按照aspect ration
+（长宽比）排序，然后很粗糙的均分为两半训练两个component的rootfilte。这两个
+rootfilter的size也就直接由分到的pos examples决定了。后续取正样本时，直接将正样本
+缩放成rootfilter的大小。
+Phase2:是LSVM训练。Latent variables 有图像中正样本的实际位置包括空间位置（x,y）,
+尺度位置level，以及component的类别c，即属于component1 还是属于 component 2。要训
+练的参数为两个 rootfilter，offset（b）
+Phase3:也是LSVM过程。
+先提下子模型的添加。作者固定了每个component有6个partfilter，但实际上还会根据实际
+情况减少。为了减少参数，partfilter都是对称的。partfilter在rootfilter中的锚点
+（anchor location）在按最大energy选取partfilter的时候就已经固定下来了。
+这阶段的Latent variables是最多的有：rootfilter（x,y,scale）,partfilters(x,y,scale)。
+要训练的参数为 rootfilters, rootoffset, partfilters, defs(的偏移Cost)。
+*/
 void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, char** bgfiles, int bgnum, int negnum, const char* dir, ccv_dpm_new_param_t params)
 {
 	int t, d, c, i, j, k, p;

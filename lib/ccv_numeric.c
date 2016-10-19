@@ -1051,7 +1051,9 @@ void ccv_filter(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b, ccv_dense_matrix_t
 	if ((b->rows * b->cols < (log((double)(b->rows * b->cols)) + 1) * 15) && (a->type & CCV_8U))
 	{
 		_ccv_filter_direct_8u(a, b, dd, padding_pattern);
-	} else {
+	} 
+	else 
+	{
 #ifdef HAVE_FFTW3
 		_ccv_filter_fftw(a, b, dd, padding_pattern);
 #else

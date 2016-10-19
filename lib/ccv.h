@@ -1469,6 +1469,12 @@ typedef struct
 	ccv_dpm_root_classifier_t* root;
 } ccv_dpm_mixture_model_t;
 
+/*
+flags: CCV_DPM_NO_NESTED, if one class of object is inside another class of object, this flag will reject the first object.
+interval: Interval images between the full size image and the half size one. e.g. 2 will generate 2 images in between full size image and half size one: image with full size, image with 5/6 size, image with 2/3 size, image with 1/2 size.
+min_neighbors: 0: no grouping afterwards. 1: group objects that intersects each other. > 1: group objects that intersects each other, and only passes these that have at least min_neighbors intersected objects.
+threshold: The threshold the determines the acceptance of an object.
+*/
 typedef struct {
 	int interval; /**< Interval images between the full size image and the half size one. e.g. 2 will generate 2 images in between full size image and half size one: image with full size, image with 5/6 size, image with 2/3 size, image with 1/2 size. */
 	int min_neighbors; /**< 0: no grouping afterwards. 1: group objects that intersects each other. > 1: group objects that intersects each other, and only passes these that have at least **min_neighbors** intersected objects. */
@@ -1476,6 +1482,28 @@ typedef struct {
 	float threshold; /**< The threshold the determines the acceptance of an object. */
 } ccv_dpm_param_t;
 
+/*
+ccv_dpm_new_param_t
+
+C: C in SVM.
+alpha: The step size for stochastic gradient descent.
+alpha_ratio: Decrease the step size for each iteration. 0.85 is a reasonable number.
+balance: To balance the weight of positive examples and negative examples. 1.5 is a reasonable number.
+components: The number of root filters in the mixture model.
+data_minings: How many data mining procedures are needed for discovering hard examples.
+detector: A ccv_dpm_params_t structure that will be used to search positive examples and negative examples from background images.
+grayscale: Whether to exploit color in a given image.
+include_overlap: The percentage of overlap between expected bounding box and the bounding box from detection. Beyond this threshold, it is ensured to be the same object. 0.7 is a reasonable number.
+iterations: How many iterations needed for stochastic gradient descent.
+max_area: The maximum area that one part classifier can occupy. 5000 is a reasonable number.
+min_area: The minimum area that one part classifier can occupy, 3000 is a reasonable number.
+negative_cache_size: The cache size for negative examples. 1000 is a reasonable number.
+parts: The number of part filters for each root filter.
+percentile_breakdown: The percentile use for breakdown threshold. 0.05 is the default.
+relabels: How many relabel procedures are needed.
+root_relabels: How many relabel procedures for root classifier are needed.
+symmetric: Whether to exploit symmetric property of the object.
+*/
 typedef struct {
 	int components; /**< The number of root filters in the mixture model. */
 	int parts; /**< The number of part filters for each root filter. */

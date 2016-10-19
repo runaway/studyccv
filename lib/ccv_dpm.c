@@ -62,34 +62,47 @@ static int _ccv_dpm_scale_upto(ccv_dense_matrix_t* a, ccv_dpm_mixture_model_t** 
 {
 	int c, i;
 	ccv_size_t size = ccv_size(a->cols, a->rows);
+
+	// count = 1
 	for (c = 0; c < count; c++)
 	{
 		ccv_dpm_mixture_model_t* model = _model[c];
+
 		for (i = 0; i < model->count; i++)
 		{
 			size.width = ccv_min(model->root[i].root.w->cols * CCV_DPM_WINDOW_SIZE, size.width);
 			size.height = ccv_min(model->root[i].root.w->rows * CCV_DPM_WINDOW_SIZE, size.height);
 		}
 	}
+	
 	int hr = a->rows / size.height;
 	int wr = a->cols / size.width;
 	double scale = pow(2.0, 1.0 / (interval + 1.0));
 	int next = interval + 1;
+	
 	return (int)(log((double)ccv_min(hr, wr)) / log(scale)) - next;
 }
 
-static void _ccv_dpm_feature_pyramid(ccv_dense_matrix_t* a, ccv_dense_matrix_t** pyr, int scale_upto, int interval)
+static void _ccv_dpm_feature_pyramid(ccv_dense_matrix_t* a, 
+									 ccv_dense_matrix_t** pyr, 
+									 int scale_upto, 
+									 int interval)
 {
 	int next = interval + 1;
 	double scale = pow(2.0, 1.0 / (interval + 1.0));
 	memset(pyr, 0, (scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
 	pyr[next] = a;
 	int i;
+	
 	for (i = 1; i <= interval; i++)
 		ccv_resample(pyr[next], &pyr[next + i], 0, (int)(pyr[next]->rows / pow(scale, i)), (int)(pyr[next]->cols / pow(scale, i)), CCV_INTER_AREA);
+
 	for (i = next; i < scale_upto + next; i++)
 		ccv_sample_down(pyr[i], &pyr[i + next], 0, 0, 0);
+
 	ccv_dense_matrix_t* hog;
+
+	// 一个产生上一级HOG的更有效的方法(用更小的尺寸)
 	/* a more efficient way to generate up-scaled hog (using smaller size) */
 	for (i = 0; i < next; i++)
 	{
@@ -97,9 +110,11 @@ static void _ccv_dpm_feature_pyramid(ccv_dense_matrix_t* a, ccv_dense_matrix_t**
 		ccv_hog(pyr[i + next], &hog, 0, 9, CCV_DPM_WINDOW_SIZE / 2 /* this is */);
 		pyr[i] = hog;
 	}
+	
 	hog = 0;
 	ccv_hog(pyr[next], &hog, 0, 9, CCV_DPM_WINDOW_SIZE);
 	pyr[next] = hog;
+	
 	for (i = next + 1; i < scale_upto + next * 2; i++)
 	{
 		hog = 0;
@@ -109,7 +124,31 @@ static void _ccv_dpm_feature_pyramid(ccv_dense_matrix_t* a, ccv_dense_matrix_t**
 	}
 }
 
-static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier, ccv_dense_matrix_t* hog, ccv_dense_matrix_t* hog2x, ccv_dense_matrix_t** _response, ccv_dense_matrix_t** part_feature, ccv_dense_matrix_t** dx, ccv_dense_matrix_t** dy)
+/* 
+score(x0, y0, l0) = R0l0(x0, y0) + Sigma(1~n){(Di,(l0-lambda))(2(x0, y0) + vi) + b} 
+
+R0l0(x0, y0)是rootfilter(主模型)的得分,或者说是匹配程度,本质就是Beta和Feature的
+卷积，后面的partfilter也是如此。中间是n个partfilter（子模型）的得分。b是为了
+component之间对齐而设的rootoffset. (x0, y0)为rootfilter的left-top位置在
+root feature map中的坐标，2(x0, y0) + vi)为第i个partfilter映射到part feature map
+中的坐标。*2是因为part feature map的分辨率是root feature map的两倍，vi为相对于
+rootfilter left-top的偏移。
+
+PartFilter_i的得分如下：
+(Di,l)(x, y) =  max ((Ri,l)(x + dx, y + dy) - di dp Phi_d(dx, dy))
+			   dx,dy
+上式是在patfilter理想位置(x, y),即anchor position的一定范围内，寻找一个综合匹配
+和形变最优的位置。(dx, dy)为偏移向量，di为偏移向量(dx, dy, dxx, dyy)，
+Phi_d(dx, dy)为偏移的Cost权值。比如Phi_d(dx, dy) = (0, 0, 1, 1)则
+di dp Phi_d(dx, dy)即为最普遍的欧氏距离。这一步称为距离变换，即下图中的transformed response。			   
+*/
+static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier, 
+								   ccv_dense_matrix_t* hog, 
+								   ccv_dense_matrix_t* hog2x, 
+								   ccv_dense_matrix_t** _response, 
+								   ccv_dense_matrix_t** part_feature, 
+								   ccv_dense_matrix_t** dx, 
+								   ccv_dense_matrix_t** dy)
 {
 	ccv_dense_matrix_t* response = 0;
 	ccv_filter(hog, root_classifier->root.w, &response, 0, CCV_NO_PADDING);
@@ -117,12 +156,15 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier, c
 	ccv_flatten(response, (ccv_matrix_t**)&root_feature, 0, 0);
 	ccv_matrix_free(response);
 	*_response = root_feature;
+	
 	if (hog2x == 0)
 		return;
+	
 	ccv_make_matrix_mutable(root_feature);
 	int rwh = (root_classifier->root.w->rows - 1) / 2, rww = (root_classifier->root.w->cols - 1) / 2;
 	int rwh_1 = root_classifier->root.w->rows / 2, rww_1 = root_classifier->root.w->cols / 2;
 	int i, x, y;
+
 	for (i = 0; i < root_classifier->count; i++)
 	{
 		ccv_dpm_part_classifier_t* part = root_classifier->part + i;
@@ -140,14 +182,17 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier, c
 		int offx = part->x + pww - rww * 2;
 		int minx = pww, maxx = part_feature[i]->cols - part->w->cols + pww;
 		float* f_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
+
 		for (y = rwh; y < root_feature->rows - rwh_1; y++)
 		{
 			int iy = ccv_clamp(y * 2 + offy, miny, maxy);
+
 			for (x = rww; x < root_feature->cols - rww_1; x++)
 			{
 				int ix = ccv_clamp(x * 2 + offx, minx, maxx);
 				f_ptr[x] -= ccv_get_dense_matrix_cell_value_by(CCV_32F | CCV_C1, part_feature[i], iy, ix, 0);
 			}
+			
 			f_ptr += root_feature->cols;
 		}
 	}
@@ -482,18 +527,27 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 	prob.x = (struct feature_node**)malloc(sizeof(struct feature_node*) * (cnum + negex->rnum) * (!!symmetric + 1));
 	FLUSH(CCV_CLI_INFO, " - converting examples to liblinear format: %d / %d", 0, (cnum + negex->rnum) * (!!symmetric + 1));
 	l = 0;
+
 	for (i = 0; i < posex->rnum; i++)
+	{
 		if (poslabels[i] == label)
 		{
 			ccv_dense_matrix_t* hog = ((ccv_dpm_feature_vector_t*)ccv_array_get(posex, i))->root.w;
+
 			if (!hog)
 				continue;
+
+			/* 作者对HOG进行了很大的改动。作者没有用4*9=36维向量，而是对每个8x8
+			的cell提取18+9+4=31维特征向量。作者还讨论了依据PCA（Principle Component 
+			Analysis）可视化的结果选9+4维特征，能达到HOG 4*9维特征的效果。*/
 			struct feature_node* features;
+
 			if (symmetric)
 			{
 				features = (struct feature_node*)malloc(sizeof(struct feature_node) * (31 * cols2c * rows + 2));
 				float* hptr = hog->data.f32;
 				j = 0;
+				
 				for (y = 0; y < rows; y++)
 				{
 					for (x = 0; x < cols2c; x++)
@@ -505,6 +559,7 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 						}
 					hptr += hog->cols * 31;
 				}
+				
 				features[j].index = j + 1;
 				features[j].value = prob.bias;
 				features[j + 1].index = -1;
@@ -514,6 +569,7 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 				features = (struct feature_node*)malloc(sizeof(struct feature_node) * (31 * cols2c * rows + 2));
 				hptr = hog->data.f32;
 				j = 0;
+				
 				for (y = 0; y < rows; y++)
 				{
 					for (x = 0; x < cols2c; x++)
@@ -525,19 +581,24 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 						}
 					hptr += hog->cols * 31;
 				}
+				
 				features[j].index = j + 1;
 				features[j].value = prob.bias;
 				features[j + 1].index = -1;
 				prob.x[l] = features;
 				prob.y[l] = 1;
 				++l;
-			} else {
+			} 
+			else 
+			{
 				features = (struct feature_node*)malloc(sizeof(struct feature_node) * (31 * cols * rows + 2));
+
 				for (j = 0; j < rows * cols * 31; j++)
 				{
 					features[j].index = j + 1;
 					features[j].value = hog->data.f32[j];
 				}
+				
 				features[31 * rows * cols].index = 31 * rows * cols + 1;
 				features[31 * rows * cols].value = prob.bias;
 				features[31 * rows * cols + 1].index = -1;
@@ -545,18 +606,24 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 				prob.y[l] = 1;
 				++l;
 			}
+			
 			FLUSH(CCV_CLI_INFO, " - converting examples to liblinear format: %d / %d", l, (cnum + negex->rnum) * (!!symmetric + 1));
 		}
+	}
+	
 	for (i = 0; i < negex->rnum; i++)
+	{
 		if (neglabels[i] == label)
 		{
 			ccv_dense_matrix_t* hog = ((ccv_dpm_feature_vector_t*)ccv_array_get(negex, i))->root.w;
 			struct feature_node* features;
+
 			if (symmetric)
 			{
 				features = (struct feature_node*)malloc(sizeof(struct feature_node) * (31 * cols2c * rows + 2));
 				float* hptr = hog->data.f32;
 				j = 0;
+				
 				for (y = 0; y < rows; y++)
 				{
 					for (x = 0; x < cols2c; x++)
@@ -566,8 +633,10 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 							features[j].value = hptr[x * 31 + k];
 							++j;
 						}
+						
 					hptr += hog->cols * 31;
 				}
+				
 				features[j].index = j + 1;
 				features[j].value = prob.bias;
 				features[j + 1].index = -1;
@@ -577,6 +646,7 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 				features = (struct feature_node*)malloc(sizeof(struct feature_node) * (31 * cols2c * rows + 2));
 				hptr = hog->data.f32;
 				j = 0;
+				
 				for (y = 0; y < rows; y++)
 				{
 					for (x = 0; x < cols2c; x++)
@@ -594,13 +664,17 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 				prob.x[l] = features;
 				prob.y[l] = -1;
 				++l;
-			} else {
+			}
+			else 
+			{
 				features = (struct feature_node*)malloc(sizeof(struct feature_node) * (31 * cols * rows + 2));
+
 				for (j = 0; j < 31 * rows * cols; j++)
 				{
 					features[j].index = j + 1;
 					features[j].value = hog->data.f32[j];
 				}
+				
 				features[31 * rows * cols].index = 31 * rows * cols + 1;
 				features[31 * rows * cols].value = prob.bias;
 				features[31 * rows * cols + 1].index = -1;
@@ -608,8 +682,11 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 				prob.y[l] = -1;
 				++l;
 			}
+			
 			FLUSH(CCV_CLI_INFO, " - converting examples to liblinear format: %d / %d", l, (cnum + negex->rnum) * (!!symmetric + 1));
 		}
+	}
+		
 	prob.l = l;
 	PRINT(CCV_CLI_INFO, "\n - generated %d examples with %d dimensions each\n"
 						" - running liblinear for initial linear SVM model (L2-regularized, L1-loss)\n", prob.l, prob.n);
@@ -620,6 +697,7 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 										   .weight_label = 0,
 										   .weight = 0 };
 	const char* err = check_parameter(&prob, &linear_parameters);
+	
 	if (err)
 	{
 		PRINT(CCV_CLI_ERROR, " - ERROR: cannot pass check parameter: %s\n", err);
@@ -634,11 +712,13 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 	if (symmetric)
 	{
 		float* wptr = root_classifier->root.w->data.f32;
+		
 		for (y = 0; y < rows; y++)
 		{
 			for (x = 0; x < cols2c; x++)
 				for (k = 0; k < 31; k++)
 					wptr[(cols - 1 - x) * 31 + _ccv_dpm_sym_lut[k]] = wptr[x * 31 + k] = linear->w[(y * cols2c + x) * 31 + k];
+
 			wptr += cols * 31;
 		}
 
@@ -650,13 +730,16 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 	{
 		for (j = 0; j < 31 * rows * cols; j++)
 			root_classifier->root.w->data.f32[j] = linear->w[j];
+
 		root_classifier->beta = linear->w[31 * rows * cols];
 	}
 	
 	free_and_destroy_model(&linear);
 	free(prob.y);
+
 	for (j = 0; j < prob.l; j++)
 		free(prob.x[j]);
+
 	free(prob.x);
 	ccv_make_matrix_immutable(root_classifier->root.w);
 }
@@ -904,9 +987,11 @@ static ccv_dpm_feature_vector_t* _ccv_dpm_collect_best(ccv_dense_matrix_t* image
 	int scale_upto = _ccv_dpm_scale_upto(image, &model, 1, params.interval);
 	if (scale_upto < 0)
 		return 0;
+
+	// 分配特征金字塔空间
 	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
 
-
+	// 生成特征金字塔
 	_ccv_dpm_feature_pyramid(image, pyr, scale_upto, params.interval);
 
 	float best = -FLT_MAX;
@@ -1612,6 +1697,7 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 		{
 			for (i = 0; i < posnum + negnum; i++)
 				order[i] = i;
+			
 			gsl_ran_shuffle(rng, order, posnum + negnum, sizeof(int));
 
 			for (j = 0; j < model->count; j++)
@@ -1620,12 +1706,14 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 				double neg_weight = sqrt((double)pos_prog[j] / neg_prog[j] / balance); // negative weight
 				_model = _ccv_dpm_model_copy(model);
 				int l = 0;
+				
 				for (i = 0; i < posnum + negnum; i++)
 				{
 					k = order[i];
 					if (label[k]  == j)
 					{
 						assert(label[k] < model->count);
+						
 						if (k < posnum)
 						{
 							ccv_dpm_feature_vector_t* v = (ccv_dpm_feature_vector_t*)ccv_array_get(posex[label[k]], k);
@@ -1727,10 +1815,11 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 	return model;
 }
 
+// 用给定的正样本和背景图来创建一个新的DPM混合模型
 /*
 提下各阶段的工作，主要是论文中没有的Latent 变量分析：
 Phase1:是传统的SVM训练过程，与HOG算法一致。作者是随机将正样本按照aspect ration
-（长宽比）排序，然后很粗糙的均分为两半训练两个component的rootfilte。这两个
+（长宽比）排序，然后很粗糙的均分为两半训练两个component的rootfilter。这两个
 rootfilter的size也就直接由分到的pos examples决定了。后续取正样本时，直接将正样本
 缩放成rootfilter的大小。
 Phase2:是LSVM训练。Latent variables 有图像中正样本的实际位置包括空间位置（x,y）,
@@ -1742,8 +1831,24 @@ Phase3:也是LSVM过程。
 （anchor location）在按最大energy选取partfilter的时候就已经固定下来了。
 这阶段的Latent variables是最多的有：rootfilter（x,y,scale）,partfilters(x,y,scale)。
 要训练的参数为 rootfilters, rootoffset, partfilters, defs(的偏移Cost)。
+
+posfiles: An array of positive images.
+bboxes: An array of bounding boxes for positive images.
+posnum: Number of positive examples.
+bgfiles: An array of background images.
+bgnum: Number of background images.
+negnum: Number of negative examples that is harvested from background images.
+dir: The working directory to store/retrieve intermediate data.
+params: A ccv_dpm_new_param_t structure that defines various aspects of the training function.
 */
-void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, char** bgfiles, int bgnum, int negnum, const char* dir, ccv_dpm_new_param_t params)
+void ccv_dpm_mixture_model_new(char** posfiles, 
+							   ccv_rect_t* bboxes, 
+							   int posnum, 
+							   char** bgfiles, 
+							   int bgnum, 
+							   int negnum, 
+							   const char* dir, 
+							   ccv_dpm_new_param_t params)
 {
 	int t, d, c, i, j, k, p;
 	_ccv_dpm_check_params(params);
@@ -1951,9 +2056,12 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 		{
 			for (j = 0; j < posex[i]->rnum; j++)
 				_ccv_dpm_feature_vector_cleanup((ccv_dpm_feature_vector_t*)ccv_array_get(posex[i], j));
+
 			ccv_array_free(posex[i]);
+
 			for (j = 0; j < negex[i]->rnum; j++)
 				_ccv_dpm_feature_vector_cleanup((ccv_dpm_feature_vector_t*)ccv_array_get(negex[i], j));
+
 			ccv_array_free(negex[i]);
 		}
 	} 
@@ -2375,25 +2483,49 @@ static int _ccv_is_equal_same_class(const void* _r1, const void* _r2, void* data
 		(int)(r2->rect.height * 1.5 + 0.5) >= r1->rect.height;
 }
 
-ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model_t** _model, int count, ccv_dpm_param_t params)
+// 在一幅给定的图像里面用DPM模型来检测目标
+// 如果有几个DPM混合模型，则最好是在一个函数调用中使用它们。
+// 这样，CCV将尝试优化整体性能
+/*
+a: The input image.
+model: An array of mixture models.
+count: How many mixture models you’ve passed in.
+params: A ccv_dpm_param_t structure that defines various aspects of the detector.
+
+return: A ccv_array_t of ccv_root_comp_t that contains the root bounding box as 
+well as its parts.
+*/
+ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, 
+									ccv_dpm_mixture_model_t** _model, 
+									int count, 
+									ccv_dpm_param_t params)
 {
 	int c, i, j, k, x, y;
 	double scale = pow(2.0, 1.0 / (params.interval + 1.0));
 	int next = params.interval + 1;
+
+	// count = 1
 	int scale_upto = _ccv_dpm_scale_upto(a, _model, count, params.interval);
+
+	// 图像太小则返回
 	if (scale_upto < 0) // image is too small to be interesting
 		return 0;
+
+	// 生成DPM特征金字塔
 	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
 	_ccv_dpm_feature_pyramid(a, pyr, scale_upto, params.interval);
+
 	ccv_array_t* idx_seq;
 	ccv_array_t* seq = ccv_array_new(sizeof(ccv_root_comp_t), 64, 0);
 	ccv_array_t* seq2 = ccv_array_new(sizeof(ccv_root_comp_t), 64, 0);
 	ccv_array_t* result_seq = ccv_array_new(sizeof(ccv_root_comp_t), 64, 0);
+
 	for (c = 0; c < count; c++)
 	{
 		ccv_dpm_mixture_model_t* model = _model[c];
 		double scale_x = 1.0;
 		double scale_y = 1.0;
+		
 		for (i = next; i < scale_upto + next * 2; i++)
 		{
 			for (j = 0; j < model->count; j++)
@@ -2403,7 +2535,10 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 				ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
 				ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
 				ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
+
+				// 计算综合得分score(x0, y0, l0)
 				_ccv_dpm_compute_score(root, pyr[i], pyr[i - next], &root_feature, part_feature, dx, dy);
+
 				int rwh = (root->root.w->rows - 1) / 2, rww = (root->root.w->cols - 1) / 2;
 				int rwh_1 = root->root.w->rows / 2, rww_1 = root->root.w->cols / 2;
 				/* these values are designed to make sure works with odd/even number of rows/cols
@@ -2412,6 +2547,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 				 * at (2,2) and end at (2,2), thus, it is capped by (rwh, rww) to (6 - rwh_1 - 1, 6 - rww_1 - 1)
 				 * this computation works for odd root classifier too (i.e. 5x5) */
 				float* f_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
+
 				for (y = rwh; y < root_feature->rows - rwh_1; y++)
 				{
 					for (x = rww; x < root_feature->cols - rww_1; x++)
@@ -2425,6 +2561,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 							float drift_x = root->alpha[0],
 								  drift_y = root->alpha[1],
 								  drift_scale = root->alpha[2];
+							
 							for (k = 0; k < root->count; k++)
 							{
 								ccv_dpm_part_classifier_t* part = root->part + k;
@@ -2445,19 +2582,23 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 								comp.part[k].rect = ccv_rect((int)((rx - pww) * CCV_DPM_WINDOW_SIZE / 2 * scale_x + 0.5), (int)((ry - pwh) * CCV_DPM_WINDOW_SIZE / 2 * scale_y + 0.5), (int)(part->w->cols * CCV_DPM_WINDOW_SIZE / 2 * scale_x + 0.5), (int)(part->w->rows * CCV_DPM_WINDOW_SIZE / 2 * scale_y + 0.5));
 								comp.part[k].classification.confidence = -ccv_get_dense_matrix_cell_value_by(CCV_32F | CCV_C1, part_feature[k], iy, ix, 0);
 							}
+							
 							comp.rect = ccv_rect((int)((x + drift_x) * CCV_DPM_WINDOW_SIZE * scale_x - rww * CCV_DPM_WINDOW_SIZE * scale_x * (1.0 + drift_scale) + 0.5), (int)((y + drift_y) * CCV_DPM_WINDOW_SIZE * scale_y - rwh * CCV_DPM_WINDOW_SIZE * scale_y * (1.0 + drift_scale) + 0.5), (int)(root->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x * (1.0 + drift_scale) + 0.5), (int)(root->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y * (1.0 + drift_scale) + 0.5));
 							ccv_array_push(seq, &comp);
 						}
 					f_ptr += root_feature->cols;
 				}
+				
 				for (k = 0; k < root->count; k++)
 				{
 					ccv_matrix_free(part_feature[k]);
 					ccv_matrix_free(dx[k]);
 					ccv_matrix_free(dy[k]);
 				}
+				
 				ccv_matrix_free(root_feature);
 			}
+			
 			scale_x *= scale;
 			scale_y *= scale;
 		}
@@ -2475,6 +2616,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 		{
 			idx_seq = 0;
 			ccv_array_clear(seq2);
+			
 			// group retrieved rectangles in order to filter out noise
 			int ncomp = ccv_array_group(seq, &idx_seq, _ccv_is_equal_same_class, 0);
 			ccv_root_comp_t* comps = (ccv_root_comp_t*)ccmalloc((ncomp + 1) * sizeof(ccv_root_comp_t));
@@ -2516,6 +2658,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 				for (j = 0; j < seq2->rnum; j++)
 				{
 					ccv_root_comp_t r1 = *(ccv_root_comp_t*)ccv_array_get(seq2, j);
+
 					if (i != j &&
 						abs(r1.classification.id) == r2->classification.id &&
 						r1.rect.x >= r2->rect.x - distance &&
@@ -2562,6 +2705,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 						ccv_array_push(result_seq, &r1);
 				}
 			}
+			
 			ccv_array_free(idx_seq);
 			ccfree(comps);
 		}
@@ -2613,13 +2757,20 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 
 		ccv_array_free(result_seq);
 		ccfree(comps);
-	} else {
+	}
+	else 
+	{
 		result_seq2 = result_seq;
 	}
 
 	return result_seq2;
 }
 
+// 从一个模型文件中读取DPM混合模型
+/*
+directory: The model file for DPM mixture model.
+return: A DPM mixture model, 0 if no valid DPM mixture model available.
+*/
 ccv_dpm_mixture_model_t* ccv_dpm_read_mixture_model(const char* directory)
 {
     //LogStart();LogProcess();LogEnd();
@@ -2707,6 +2858,8 @@ ccv_dpm_mixture_model_t* ccv_dpm_read_mixture_model(const char* directory)
 	return model;
 }
 
+// 从DPM混合模型释放内存
+// model: The DPM mixture model.
 void ccv_dpm_mixture_model_free(ccv_dpm_mixture_model_t* model)
 {
 	ccfree(model);

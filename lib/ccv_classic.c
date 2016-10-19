@@ -1,6 +1,14 @@
 #include "ccv.h"
 #include "ccv_internal.h"
 
+/*
+HOG属于特征提取，它统计梯度直方图特征。具体来说就是将梯度方向（0->360°）划分为
+9个区间，将图像化为16x16的若干个block,每个block在化为4个cell（8x8）。对每一个
+cell,算出每一点的梯度方向和模，按梯度方向增加对应bin的值，最终综合N个cell的梯度
+直方图形成一个高维描述子向量。实际实现的时候会有各种插值。
+
+sbin = 9; size = 4, 8
+*/
 void ccv_hog(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int b_type, int sbin, int size)
 {
 	assert(a->rows >= size && a->cols >= size && (4 + sbin * 3) <= CCV_MAX_CHANNEL);
@@ -19,6 +27,10 @@ void ccv_hog(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int b_type, int sbin
 	ccv_dense_matrix_t* cn = ccv_dense_matrix_new(rows, cols, CCV_GET_DATA_TYPE(db->type) | (sbin * 2), 0, 0);
 	ccv_dense_matrix_t* ca = ccv_dense_matrix_new(rows, cols, CCV_GET_DATA_TYPE(db->type) | CCV_C1, 0, 0);
 	ccv_zero(cn);
+
+	// 在4个归一化因子上归一化sbin个方向敏感特征和sbin * 2个不敏感特征
+	// 将它们累积到sbin * 2 + sbin + 4个通道上
+	// TNA - 截断 归一化 累积
 	// normalize sbin direction-sensitive and sbin * 2 insensitive over 4 normalization factor
 	// accumulating them over sbin * 2 + sbin + 4 channels
 	// TNA - truncation - normalization - accumulation

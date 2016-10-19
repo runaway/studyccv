@@ -1,12 +1,1 @@
----- data-minings Matches (2 in 1 files) ----
-Dpmcreate.c (bin):	"    --data-minings : how many data mining procedures are needed for discovering hard examples [DEFAULT TO 50]\n"
-Dpmcreate.c (bin):		{"data-minings", 1, 0, 0},
----- data_minings Matches (8 in 4 files) ----
-Ccv.h (lib):	int data_minings; /**< How many data mining procedures are needed for discovering hard examples. */
-Ccv_dpm.c (lib):	assert(params.data_minings >= 0);
-Ccv_dpm.c (lib):	PRINT(CCV_CLI_INFO, "expected %d root relabels, %d relabels, %d data minings and %d iterations\n", params.root_relabels, params.relabels, params.data_minings, params.iterations);
-Ccv_dpm.c (lib):		for (; d < params.data_minings; d++)
-Ccv_dpm.c (lib):			PRINT(CCV_CLI_INFO, "\n - data mining %d takes %.2lf seconds at loss %.5lf, %d more to go (%d of %d)\n", d + 1, (double)(_ccv_dpm_time_measure() - elapsed_time) / 1000000.0, loss, params.data_minings - d - 1, c + 1, params.relabels);
-Dpmcreate.c (bin):		.data_minings = 50,
-Dpmcreate.c (bin):				params.data_minings = atoi(optarg);
-Index.html (site\0.6\lib\ccv-dpm):  <li><strong>data_minings</strong>: how many data mining procedures are needed for discovering hard examples.</li>
+---- 传统的SVM训练过程 Matches (0 in 0 files) ----

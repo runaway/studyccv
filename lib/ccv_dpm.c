@@ -902,10 +902,12 @@ static void _ccv_dpm_feature_vector_free(ccv_dpm_feature_vector_t* vector)
 	ccfree(vector);
 }
 
-static double _ccv_dpm_vector_score(ccv_dpm_mixture_model_t* model, ccv_dpm_feature_vector_t* v)
+static double _ccv_dpm_vector_score(ccv_dpm_mixture_model_t* model, 
+									ccv_dpm_feature_vector_t* v)
 {
 	if (v->id < 0 || v->id >= model->count)
 		return 0;
+	
 	ccv_dpm_root_classifier_t* root_classifier = model->root + v->id;
 
 	// b是为了component之间对齐而设的rootoffset
@@ -927,7 +929,8 @@ static double _ccv_dpm_vector_score(ccv_dpm_mixture_model_t* model, ccv_dpm_feat
 		ccv_dpm_part_classifier_t* part_vector = v->part + k;
 
 		// (dx,dy)为偏移向量,di为偏移向量(dx,dy,dxx,dyy),PhiD(dx,dy)为偏移的Cost权值 
-		// 比如PhiD(dx,dy) = (0,0,1,1),则di dp PhiD(dx,dy)即为最普遍的欧氏距离。这一步称为距离变换，即transformed response
+		// 比如PhiD(dx,dy) = (0,0,1,1),则di dp PhiD(dx,dy)即为最普遍的欧氏距离。
+		// 这一步称为距离变换，即transformed response
 		score -= part_classifier->dx * part_vector->dx;
 		score -= part_classifier->dxx * part_vector->dxx;
 		score -= part_classifier->dy * part_vector->dy;
@@ -937,7 +940,9 @@ static double _ccv_dpm_vector_score(ccv_dpm_mixture_model_t* model, ccv_dpm_feat
 
 		// 中间是n个partfilter（前面称之为子模型）的得分。
 		for (i = 0; i < part_vector->w->rows * part_vector->w->cols * ch; i++)
+		{
 			score += wptr[i] * vptr[i];
+		}
 	}
 	
 	return score;
@@ -1186,13 +1191,32 @@ static void _ccv_dpm_collect_from_background(ccv_array_t* av, gsl_rng* rng, char
 	ccfree(order);
 }
 
-static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model, char** posfiles, ccv_rect_t* bboxes, int posnum, ccv_dpm_new_param_t params)
+/*
+int gsl_multifit_linear (const gsl_matrix * X, const gsl_vector * y, gsl_vector * c, gsl_matrix * cov, double * chisq, gsl_multifit_linear_workspace * work)
+
+//x是自变量 注意这儿是矩阵形式 每一行代表一个自变量的输入向量
+//y是因变量  每一行代表相应x输入的结果
+//c是结果 大小等于x的列向量的长度
+//cov是系数的variance-covariance矩阵 是M*M (M是x的列长）
+//chisq是残差
+//work是工作空间 长宽与x的长宽相同
+*/
+
+static void 
+_ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model, 
+											 char** posfiles, 
+											 ccv_rect_t* bboxes, 
+											 int posnum, 
+											 ccv_dpm_new_param_t params)
 {
 	int i, j, k, c;
+
+	// 给正样本向量分配空间
 	ccv_dpm_feature_vector_t** posv = (ccv_dpm_feature_vector_t**)ccmalloc(sizeof(ccv_dpm_feature_vector_t*) * posnum);
 	int* num_per_model = (int*)alloca(sizeof(int) * model->count);
 	memset(num_per_model, 0, sizeof(int) * model->count);
 	FLUSH(CCV_CLI_INFO, " - collecting responses from positive examples : 0%%");
+
 	for (i = 0; i < posnum; i++)
 	{
 		FLUSH(CCV_CLI_INFO, " - collecting responses from positive examples : %d%%", i * 100 / posnum);
@@ -1203,6 +1227,7 @@ static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t
 
 		if (posv[i])
 			++num_per_model[posv[i]->id];
+		
 		ccv_matrix_free(image);
 	}
 
@@ -1237,9 +1262,16 @@ static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t
 				}
 
 				ccv_rect_t bbox = bboxes[j];
-				gsl_vector_set(y[0], c, (bbox.x + bbox.width * 0.5) / (v->scale_x * CCV_DPM_WINDOW_SIZE) - v->x);
-				gsl_vector_set(y[1], c, (bbox.y + bbox.height * 0.5) / (v->scale_y * CCV_DPM_WINDOW_SIZE) - v->y);
-				gsl_vector_set(y[2], c, sqrt((bbox.width * bbox.height) / (root_classifier->root.w->rows * v->scale_x * CCV_DPM_WINDOW_SIZE * root_classifier->root.w->cols * v->scale_y * CCV_DPM_WINDOW_SIZE)) - 1.0);
+				gsl_vector_set(y[0], 
+							   c, 
+							   (bbox.x + bbox.width * 0.5) / (v->scale_x * CCV_DPM_WINDOW_SIZE) - v->x);
+				gsl_vector_set(y[1], 
+							   c, 
+							   (bbox.y + bbox.height * 0.5) / (v->scale_y * CCV_DPM_WINDOW_SIZE) - v->y);
+				gsl_vector_set(y[2], 
+							   c, 
+							   sqrt((bbox.width * bbox.height) 
+							    / (root_classifier->root.w->rows * v->scale_x * CCV_DPM_WINDOW_SIZE * root_classifier->root.w->cols * v->scale_y * CCV_DPM_WINDOW_SIZE)) - 1.0);
 				++c;
 			}
 		}
@@ -1250,7 +1282,8 @@ static void _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t
 		for (j = 0; j < 3; j++)
 		{
 			gsl_multifit_linear(X, y[j], z, cov, &chisq, workspace);
-			root_classifier->alpha[j] = params.discard_estimating_constant ? 0 : gsl_vector_get(z, 0);
+			root_classifier->alpha[j] = 
+				params.discard_estimating_constant ? 0 : gsl_vector_get(z, 0);
 
 			for (k = 0; k < root_classifier->count; k++)
 			{
@@ -1599,14 +1632,18 @@ static void _ccv_dpm_adjust_model_constant(ccv_dpm_mixture_model_t* model, int k
 	int i, j;
 	double* scores = (double*)ccmalloc(posnum * sizeof(double));
 	j = 0;
+	
 	for (i = 0; i < posnum; i++)
 		if (posv[i] && posv[i]->id == k)
 		{
 			scores[j] = _ccv_dpm_vector_score(model, posv[i]);
 			j++;
 		}
+		
 	_ccv_dpm_score_qsort(scores, j, 0);
 	float adjust = scores[ccv_clamp((int)(percentile * j), 0, j - 1)];
+
+	// 调整百分率
 	// adjust to percentile
 	model->root[k].beta -= adjust;
 	PRINT(CCV_CLI_INFO, " - tune model %d constant for %f\n", k + 1, -adjust);
@@ -1637,7 +1674,18 @@ static void _ccv_dpm_check_params(ccv_dpm_new_param_t params)
 #define MINI_BATCH (10)
 #define REGQ (100)
 
-static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng, ccv_dpm_mixture_model_t* model, ccv_array_t** posex, ccv_array_t** negex, int relabels, double balance, double C, double previous_alpha, double alpha_ratio, int iterations, int symmetric)
+static ccv_dpm_mixture_model_t* 
+_ccv_dpm_optimize_root_mixture_model(gsl_rng* rng, 
+									 ccv_dpm_mixture_model_t* model, 
+									 ccv_array_t** posex, 
+									 ccv_array_t** negex, 
+									 int relabels, 
+									 double balance, 
+									 double C, 
+									 double previous_alpha, 
+									 double alpha_ratio, 
+									 int iterations, 
+									 int symmetric)
 {
 	int i, j, k, t, c;
 	
@@ -1725,6 +1773,7 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 				for (i = 0; i < posnum + negnum; i++)
 				{
 					k = order[i];
+
 					if (label[k]  == j)
 					{
 						assert(label[k] < model->count);
@@ -1736,9 +1785,12 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 							double score = _ccv_dpm_vector_score(model, v); // the loss for mini-batch method (computed on model)
 							assert(!isnan(score));
 							assert(v->id == j);
+
 							if (score <= 1)
 								_ccv_dpm_stochastic_gradient_descent(_model, v, 1, alpha * pos_weight, regz_rate, symmetric);
-						} else {
+						} 
+						else 
+						{
 							ccv_dpm_feature_vector_t* v = (ccv_dpm_feature_vector_t*)ccv_array_get(negex[label[k]], k - posnum);
 							double score = _ccv_dpm_vector_score(model, v);
 							assert(!isnan(score));
@@ -1746,9 +1798,12 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 							if (score >= -1)
 								_ccv_dpm_stochastic_gradient_descent(_model, v, -1, alpha * neg_weight, regz_rate, symmetric);
 						}
+						
 						++l;
+						
 						if (l % REGQ == REGQ - 1)
 							_ccv_dpm_regularize_mixture_model(_model, j, 1.0 - pow(1.0 - alpha / (double)((pos_prog[j] + neg_prog[j]) * (!!symmetric + 1)), REGQ));
+
 						if (l % MINI_BATCH == MINI_BATCH - 1)
 						{
 							// mimicking mini-batch way of doing things
@@ -1759,6 +1814,7 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 						}
 					}
 				}
+
 				_ccv_dpm_regularize_mixture_model(_model, j, 1.0 - pow(1.0 - alpha / (double)((pos_prog[j] + neg_prog[j]) * (!!symmetric + 1)), (((pos_prog[j] + neg_prog[j]) % REGQ) + 1) % (REGQ + 1)));
 				_ccv_dpm_mixture_model_cleanup(model);
 				ccfree(model);
@@ -1768,15 +1824,18 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 			// compute the loss
 			positive_loss = negative_loss = loss = 0;
 			int posvn = 0;
-			
+
+			// 计算正样本的加权铰链损失
 			for (i = 0; i < posnum; i++)
 			{
 				if (label[i] < 0)
 					continue;
 				assert(label[i] < model->count);
 				ccv_dpm_feature_vector_t* v = (ccv_dpm_feature_vector_t*)ccv_array_get(posex[label[i]], i);
+
 				if (v->root.w)
 				{
+					// score = yi * Fbata(xi)
 					double score = _ccv_dpm_vector_score(model, v);
 					assert(!isnan(score));
 					double hinge_loss = ccv_max(0, 1.0 - score);
@@ -1786,7 +1845,8 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 					++posvn;
 				}
 			}
-			
+
+			// 计算负样本的加权铰链损失
 			for (i = 0; i < negnum; i++)
 			{
 				if (label[i + posnum] < 0)
@@ -1800,7 +1860,8 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 				double neg_weight = sqrt((double)pos_prog[v->id] / neg_prog[v->id] / balance); // negative weight
 				loss += neg_weight * hinge_loss;
 			}
-			
+
+			// 计算所有样本的平均铰链损失
 			loss = loss / (posvn + negnum);
 			positive_loss = positive_loss / posvn;
 			negative_loss = negative_loss / negnum;
@@ -1813,16 +1874,19 @@ static ccv_dpm_mixture_model_t* _ccv_dpm_optimize_root_mixture_model(gsl_rng* rn
 					ccv_dpm_root_classifier_t* root_classifier = model->root + i;
 					_ccv_dpm_check_root_classifier_symmetry(root_classifier->root.w);
 				}
+
 			if (fabs(previous_positive_loss - positive_loss) < 1e-5 &&
 				fabs(previous_negative_loss - negative_loss) < 1e-5)
 			{
 				PRINT(CCV_CLI_INFO, "\n - aborting iteration at %d because we didn't gain much", t + 1);
 				break;
 			}
+			
 			previous_positive_loss = positive_loss;
 			previous_negative_loss = negative_loss;
 			alpha *= alpha_ratio; // it will decrease with each iteration
 		}
+
 		PRINT(CCV_CLI_INFO, "\n");
 	}
 	ccfree(order);
@@ -2349,10 +2413,12 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 					model = _model;
 				}
 
+				// 计算损失
 				// compute the loss
 				int posvn = 0;
 				positive_loss = negative_loss = loss = 0;
 
+				// 计算正样本的加权铰链损失
 				for (i = 0; i < posnum; i++)
 					if (posv[i] != 0)
 					{
@@ -2364,7 +2430,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 						loss += pos_weight * hinge_loss;
 						++posvn;
 					}
-					
+
+				// 计算负样本的加权铰链损失	
 				for (i = 0; i < negv->rnum; i++)
 				{
 					ccv_dpm_feature_vector_t* v = *(ccv_dpm_feature_vector_t**)ccv_array_get(negv, i);
@@ -2375,7 +2442,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 					double neg_weight = sqrt((double)posvnum[v->id] / negvnum[v->id] / params.balance); // negative weight
 					loss += neg_weight * hinge_loss;
 				}
-				
+
+				// 计算所有样本的加权平均铰链损失
 				loss = loss / (posvn + negv->rnum);
 				positive_loss = positive_loss / posvn;
 				negative_loss = negative_loss / negv->rnum;
@@ -2389,14 +2457,19 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 						ccv_dpm_root_classifier_t* root_classifier = model->root + i;
 						_ccv_dpm_check_root_classifier_symmetry(root_classifier->root.w);
 					}
+					
 				if (fabs(previous_positive_loss - positive_loss) < 1e-5 &&
 					fabs(previous_negative_loss - negative_loss) < 1e-5)
 				{
 					PRINT(CCV_CLI_INFO, "\n - aborting iteration at %d because we didn't gain much", t + 1);
 					break;
 				}
+
+				// 保存到上一次的铰链损失
 				previous_positive_loss = positive_loss;
 				previous_negative_loss = negative_loss;
+
+				// 每次迭代它会减少
 				alpha *= params.alpha_ratio; // it will decrease with each iteration
 			}
 			
@@ -2406,19 +2479,28 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 			double* scores = (double*)ccmalloc(posnum * sizeof(double));
 			
 			for (i = 0; i < posnum; i++)
+			{
 				if (posv[i])
 				{
+					// 计算posv[i]跟根滤波器和所有部件滤波器的响应分数
 					scores[j] = _ccv_dpm_vector_score(model, posv[i]);
+
+					// 如果是数字
 					assert(!isnan(scores[j]));
 					j++;
 				}
+			}
 				
 			_ccv_dpm_score_qsort(scores, j, 0);
 			ccfree(scores);
 			double breakdown;
 			PRINT(CCV_CLI_INFO, " - threshold breakdown by percentile");
-			for (breakdown = params.percentile_breakdown; breakdown < 1.0; breakdown += params.percentile_breakdown)
+
+			for (breakdown = params.percentile_breakdown; 
+				 breakdown < 1.0; 
+				 breakdown += params.percentile_breakdown)
 				PRINT(CCV_CLI_INFO, " %0.2lf(%.1f%%)", scores[ccv_clamp((int)(breakdown * j), 0, j - 1)], (1.0 - breakdown) * 100);
+
 			PRINT(CCV_CLI_INFO, "\n");
 			char persist[512];
 			sprintf(persist, "%s/model.%d.%d", dir, c, d);
@@ -2426,7 +2508,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		}
 		
 		d = 0;
-		
+
+		// 如果终止，则表明不能找到足够的负样本，尝试调整常数
 		// if abort, means that we cannot find enough negative examples, try to adjust constant
 		for (i = 0; i < posnum; i++)
 			if (posv[i])
@@ -2442,6 +2525,7 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 			ccv_dpm_feature_vector_t* v = *(ccv_dpm_feature_vector_t**)ccv_array_get(negv, i);
 			_ccv_dpm_feature_vector_free(v);
 		}
+		
 		ccv_array_free(negv);
 	}
 	
@@ -2455,6 +2539,7 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 	// 预测新的x, y和scale
 	// Result: New model Beta
 	_ccv_dpm_initialize_root_rectangle_estimator(model, posfiles, bboxes, posnum, params);
+
 	_ccv_dpm_write_checkpoint(model, 1, checkpoint);
 	PRINT(CCV_CLI_INFO, "done\n");
 	remove(gradient_progress_checkpoint);

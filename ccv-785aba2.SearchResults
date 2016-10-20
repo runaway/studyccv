@@ -28,3 +28,7 @@ Ccv_dpm.c (lib):	free(prob.y);
 Ccv_dpm.c (lib):	for (j = 0; j < prob.l; j++)
 Ccv_dpm.c (lib):		free(prob.x[j]);
 Ccv_dpm.c (lib):	free(prob.x);
+---- _ccv_dpm_score_qsort Matches (3 in 1 files) ----
+Ccv_dpm.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_dpm_score_qsort, double, less_than)
+Ccv_dpm.c (lib):	_ccv_dpm_score_qsort(scores, j, 0);
+Ccv_dpm.c (lib):			_ccv_dpm_score_qsort(scores, j, 0);

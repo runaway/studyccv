@@ -1,1 +1,30 @@
----- 传统的SVM训练过程 Matches (0 in 0 files) ----
+---- prob. Matches (31 in 1 files) ----
+Ccv_dpm.c (lib):	prob.n = symmetric ? 31 * cols2c * rows + 1 : 31 * cols * rows + 1;
+Ccv_dpm.c (lib):	prob.bias = symmetric ? 0.5 : 1.0; // for symmetric, since we only pass half features in, need to set bias to be half too
+Ccv_dpm.c (lib):	// new version (1.91) of liblinear uses double instead of int (1.8) for prob.y, cannot cast for that.
+Ccv_dpm.c (lib):	prob.y = malloc(sizeof(prob.y[0]) * (cnum + negex->rnum) * (!!symmetric + 1));
+Ccv_dpm.c (lib):	prob.x = (struct feature_node**)malloc(sizeof(struct feature_node*) * (cnum + negex->rnum) * (!!symmetric + 1));
+Ccv_dpm.c (lib):				features[j].value = prob.bias;
+Ccv_dpm.c (lib):				prob.x[l] = features;
+Ccv_dpm.c (lib):				prob.y[l] = 1;
+Ccv_dpm.c (lib):				features[j].value = prob.bias;
+Ccv_dpm.c (lib):				prob.x[l] = features;
+Ccv_dpm.c (lib):				prob.y[l] = 1;
+Ccv_dpm.c (lib):				features[31 * rows * cols].value = prob.bias;
+Ccv_dpm.c (lib):				prob.x[l] = features;
+Ccv_dpm.c (lib):				prob.y[l] = 1;
+Ccv_dpm.c (lib):				features[j].value = prob.bias;
+Ccv_dpm.c (lib):				prob.x[l] = features;
+Ccv_dpm.c (lib):				prob.y[l] = -1;
+Ccv_dpm.c (lib):				features[j].value = prob.bias;
+Ccv_dpm.c (lib):				prob.x[l] = features;
+Ccv_dpm.c (lib):				prob.y[l] = -1;
+Ccv_dpm.c (lib):				features[31 * rows * cols].value = prob.bias;
+Ccv_dpm.c (lib):				prob.x[l] = features;
+Ccv_dpm.c (lib):				prob.y[l] = -1;
+Ccv_dpm.c (lib):	prob.l = l;
+Ccv_dpm.c (lib):						" - running liblinear for initial linear SVM model (L2-regularized, L1-loss)\n", prob.l, prob.n);
+Ccv_dpm.c (lib):	free(prob.y);
+Ccv_dpm.c (lib):	for (j = 0; j < prob.l; j++)
+Ccv_dpm.c (lib):		free(prob.x[j]);
+Ccv_dpm.c (lib):	free(prob.x);

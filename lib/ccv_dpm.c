@@ -379,6 +379,7 @@ static void _ccv_dpm_check_root_classifier_symmetry(ccv_dense_matrix_t* w)
 	assert(CCV_GET_CHANNEL(w->type) == 31 && CCV_GET_DATA_TYPE(w->type) == CCV_32F);
 	float *w_ptr = w->data.f32;
 	int i, j, k;
+	
 	for (i = 0; i < w->rows; i++)
 	{
 		for (j = 0; j < w->cols; j++)
@@ -512,7 +513,17 @@ static ccv_array_t* _ccv_dpm_summon_examples_by_rectangle(char** posfiles, ccv_r
 	return posv;
 }
 
-static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_classifier_t* root_classifier, int label, int cnum, int* poslabels, ccv_array_t* posex, int* neglabels, ccv_array_t* negex, double C, int symmetric, int grayscale)
+static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, 
+												ccv_dpm_root_classifier_t* root_classifier, 
+												int label, 
+												int cnum, 
+												int* poslabels, 
+												ccv_array_t* posex, 
+												int* neglabels, 
+												ccv_array_t* negex, 
+												double C, 
+												int symmetric, 
+												int grayscale)
 {
 	int i, j, x, y, k, l;
 	int cols = root_classifier->root.w->cols;
@@ -528,6 +539,7 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 	FLUSH(CCV_CLI_INFO, " - converting examples to liblinear format: %d / %d", 0, (cnum + negex->rnum) * (!!symmetric + 1));
 	l = 0;
 
+	// 初始化正样本特征向量
 	for (i = 0; i < posex->rnum; i++)
 	{
 		if (poslabels[i] == label)
@@ -610,7 +622,8 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 			FLUSH(CCV_CLI_INFO, " - converting examples to liblinear format: %d / %d", l, (cnum + negex->rnum) * (!!symmetric + 1));
 		}
 	}
-	
+
+	// 初始化负样本特征向量
 	for (i = 0; i < negex->rnum; i++)
 	{
 		if (neglabels[i] == label)
@@ -658,6 +671,7 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 						}
 					hptr += hog->cols * 31;
 				}
+				
 				features[j].index = j + 1;
 				features[j].value = prob.bias;
 				features[j + 1].index = -1;
@@ -690,6 +704,7 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 	prob.l = l;
 	PRINT(CCV_CLI_INFO, "\n - generated %d examples with %d dimensions each\n"
 						" - running liblinear for initial linear SVM model (L2-regularized, L1-loss)\n", prob.l, prob.n);
+
 	struct parameter linear_parameters = { .solver_type = L2R_L1LOSS_SVC_DUAL,
 										   .eps = 1e-1,
 										   .C = C,
@@ -2034,6 +2049,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 			for (i = 0; i < params.components; i++)
 			{
 				ccv_dpm_root_classifier_t* root_classifier = model->root + i;
+
+				// 检查根分类器的对称性
 				_ccv_dpm_check_root_classifier_symmetry(root_classifier->root.w);
 			}
 
@@ -2157,13 +2174,18 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		
 		int* posvnum = (int*)alloca(sizeof(int) * model->count);
 		memset(posvnum, 0, sizeof(int) * model->count);
+		
 		for (i = 0; i < posnum; i++)
+		{	
 			if (posv[i])
 			{
 				assert(posv[i]->id >= 0 && posv[i]->id < model->count);
 				++posvnum[posv[i]->id];
 			}
+		}
+			
 		PRINT(CCV_CLI_INFO, " - positive examples divided by components : %d", posvnum[0]);
+
 		for (i = 1; i < model->count; i++)
 			PRINT(CCV_CLI_INFO, ", %d", posvnum[i]);
 		PRINT(CCV_CLI_INFO, "\n");
@@ -2191,12 +2213,15 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 
 					// 计算向量综合得分
 					double score = _ccv_dpm_vector_score(model, v);
+
 					assert(!isnan(score));
+
 					if (score >= -1)
 						ccv_array_push(av, &v);
 					else
 						_ccv_dpm_feature_vector_free(v);
 				}
+				
 				ccv_array_free(negv);
 				negv = av;
 			} 

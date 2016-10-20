@@ -1424,7 +1424,7 @@ typedef struct {
  * @defgroup ccv_dpm deformable parts model
  * @{
  */
-
+// 最大部件数
 #define CCV_DPM_PART_MAX (10)
 
 typedef struct {

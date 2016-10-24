@@ -395,7 +395,8 @@ static void _ccv_dpm_check_root_classifier_symmetry(ccv_dense_matrix_t* w)
 	}
 }
 
-typedef struct {
+typedef struct 
+{
 	int id;
 	int count;
 	float score;
@@ -869,13 +870,17 @@ static void _ccv_dpm_initialize_part_classifiers(ccv_dpm_root_classifier_t* root
 	ccv_matrix_free(w);
 }
 
-static void _ccv_dpm_initialize_feature_vector_on_pattern(ccv_dpm_feature_vector_t* vector, ccv_dpm_root_classifier_t* root, int id)
+static void 
+_ccv_dpm_initialize_feature_vector_on_pattern(ccv_dpm_feature_vector_t* vector, 
+											  ccv_dpm_root_classifier_t* root, 
+											  int id)
 {
 	int i;
 	vector->id = id;
 	vector->count = root->count;
 	vector->part = (ccv_dpm_part_classifier_t*)ccmalloc(sizeof(ccv_dpm_part_classifier_t) * root->count);
 	vector->root.w = ccv_dense_matrix_new(root->root.w->rows, root->root.w->cols, CCV_32F | 31, 0, 0);
+
 	for (i = 0; i < vector->count; i++)
 	{
 		vector->part[i].x = root->part[i].x;
@@ -948,7 +953,15 @@ static double _ccv_dpm_vector_score(ccv_dpm_mixture_model_t* model,
 	return score;
 }
 
-static void _ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v, float score, int x, int y, ccv_dense_matrix_t* pyr, ccv_dense_matrix_t* detail, ccv_dense_matrix_t** dx, ccv_dense_matrix_t** dy)
+static void 
+_ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v, 
+								float score, 
+								int x, 
+								int y, 
+								ccv_dense_matrix_t* pyr, 
+								ccv_dense_matrix_t* detail, 
+								ccv_dense_matrix_t** dx, 
+								ccv_dense_matrix_t** dy)
 {
 	v->score = score;
 	v->x = x;
@@ -958,12 +971,14 @@ static void _ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v, float s
 	int i, ix, iy, ch = CCV_GET_CHANNEL(v->root.w->type);
 	float* h_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | ch, pyr, y - rwh, x - rww, 0);
 	float* w_ptr = v->root.w->data.f32;
+
 	for (iy = 0; iy < v->root.w->rows; iy++)
 	{
 		memcpy(w_ptr, h_ptr, v->root.w->cols * ch * sizeof(float));
 		h_ptr += pyr->cols * ch;
 		w_ptr += v->root.w->cols * ch;
 	}
+	
 	for (i = 0; i < v->count; i++)
 	{
 		ccv_dpm_part_classifier_t* part = v->part + i;
@@ -978,6 +993,8 @@ static void _ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v, float s
 		part->dy = ry;
 		part->dxx = rx * rx;
 		part->dyy = ry * ry;
+
+		// 处理越界错误
 		// deal with out-of-bound error
 		int start_y = ccv_max(0, iy - ry - pwh);
 		assert(start_y < detail->rows);
@@ -987,9 +1004,20 @@ static void _ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v, float s
 		assert(end_y >= 0);
 		int end_x = ccv_min(detail->cols, ix - rx - pww + part->w->cols);
 		assert(end_x >= 0);
+
+		// 获取detail指针的start_y行start_x列0通道处的值
 		h_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | ch, detail, start_y, start_x, 0);
+
+		// 将第i个部件分类器的w置零
 		ccv_zero(v->part[i].w);
-		w_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | ch, part->w, start_y - (iy - ry - pwh), start_x - (ix - rx - pww), 0);
+
+		// 获取part->w指针的start_y - (iy - ry - pwh)行start_x - (ix - rx - pww)列0通道处的值
+		w_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | ch, 
+													 part->w, 
+													 start_y - (iy - ry - pwh), 
+													 start_x - (ix - rx - pww), 
+													 0);
+
 		for (iy = start_y; iy < end_y; iy++)
 		{
 			memcpy(w_ptr, h_ptr, (end_x - start_x) * ch * sizeof(float));
@@ -999,7 +1027,12 @@ static void _ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v, float s
 	}
 }
 
-static ccv_dpm_feature_vector_t* _ccv_dpm_collect_best(ccv_dense_matrix_t* image, ccv_dpm_mixture_model_t* model, ccv_rect_t bbox, double overlap, ccv_dpm_param_t params)
+static ccv_dpm_feature_vector_t* 
+_ccv_dpm_collect_best(ccv_dense_matrix_t* image, 
+					  ccv_dpm_mixture_model_t* model, 
+					  ccv_rect_t bbox, 
+					  double overlap, 
+					  ccv_dpm_param_t params)
 {
 	int i, j, k, x, y;
 	double scale = pow(2.0, 1.0 / (params.interval + 1.0));
@@ -1011,20 +1044,24 @@ static ccv_dpm_feature_vector_t* _ccv_dpm_collect_best(ccv_dense_matrix_t* image
 	// 分配特征金字塔空间
 	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
 
-	// 生成特征金字塔
+	// 生成特征金字塔pyr
 	_ccv_dpm_feature_pyramid(image, pyr, scale_upto, params.interval);
 
 	float best = -FLT_MAX;
 	ccv_dpm_feature_vector_t* v = 0;
 
+	// 按组件搜索
 	for (i = 0; i < model->count; i++)
 	{
 		ccv_dpm_root_classifier_t* root_classifier = model->root + i;
 		double scale_x = 1.0;
 		double scale_y = 1.0;
+
+		// 按尺度空间搜索
 		for (j = next; j < scale_upto + next * 2; j++)
 		{
 			ccv_size_t size = ccv_size((int)(root_classifier->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), (int)(root_classifier->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y + 0.5));
+
 			if (ccv_min((double)(size.width * size.height), (double)(bbox.width * bbox.height)) / 
 				ccv_max((double)(bbox.width * bbox.height), (double)(size.width * size.height)) < overlap)
 			{
@@ -1032,6 +1069,7 @@ static ccv_dpm_feature_vector_t* _ccv_dpm_collect_best(ccv_dense_matrix_t* image
 				scale_y *= scale;
 				continue;
 			}
+			
 			ccv_dense_matrix_t* root_feature = 0;
 			ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
 			ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
@@ -1040,72 +1078,97 @@ static ccv_dpm_feature_vector_t* _ccv_dpm_collect_best(ccv_dense_matrix_t* image
 			int rwh = (root_classifier->root.w->rows - 1) / 2, rww = (root_classifier->root.w->cols - 1) / 2;
 			int rwh_1 = root_classifier->root.w->rows / 2, rww_1 = root_classifier->root.w->cols / 2;
 			float* f_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
+
 			for (y = rwh; y < root_feature->rows - rwh_1; y++)
 			{
 				for (x = rww; x < root_feature->cols - rww_1; x++)
 				{
 					ccv_rect_t rect = ccv_rect((int)((x - rww) * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), (int)((y - rwh) * CCV_DPM_WINDOW_SIZE * scale_y + 0.5), (int)(root_classifier->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), (int)(root_classifier->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y + 0.5));
+
 					if ((double)(ccv_max(0, ccv_min(rect.x + rect.width, bbox.x + bbox.width) - ccv_max(rect.x, bbox.x)) *
 								 ccv_max(0, ccv_min(rect.y + rect.height, bbox.y + bbox.height) - ccv_max(rect.y, bbox.y))) /
 						(double)ccv_max(rect.width * rect.height, bbox.width * bbox.height) >= overlap && f_ptr[x] > best)
 					{
+						// 初始化v
 						// initialize v
 						if (v == 0)
 						{
 							v = (ccv_dpm_feature_vector_t*)ccmalloc(sizeof(ccv_dpm_feature_vector_t));
 							_ccv_dpm_initialize_feature_vector_on_pattern(v, root_classifier, i);
 						}
+
+						// 如果v->id是另外一种类型，则清空并重新初始化
 						// if it is another kind, cleanup and reinitialize
 						if (v->id != i)
 						{
 							_ccv_dpm_feature_vector_cleanup(v);
 							_ccv_dpm_initialize_feature_vector_on_pattern(v, root_classifier, i);
 						}
+
+						// 收集特征向量
 						_ccv_dpm_collect_feature_vector(v, f_ptr[x] + root_classifier->beta, x, y, pyr[j], pyr[j - next], dx, dy);
 						v->scale_x = scale_x;
 						v->scale_y = scale_y;
 						best = f_ptr[x];
 					}
 				}
+
 				f_ptr += root_feature->cols;
 			}
+			
 			for (k = 0; k < root_classifier->count; k++)
 			{
 				ccv_matrix_free(part_feature[k]);
 				ccv_matrix_free(dx[k]);
 				ccv_matrix_free(dy[k]);
 			}
+			
 			ccv_matrix_free(root_feature);
 			scale_x *= scale;
 			scale_y *= scale;
 		}
 	}
+	
 	for (i = 0; i < scale_upto + next * 2; i++)
 		ccv_matrix_free(pyr[i]);
+	
 	return v;
 }
 
-static ccv_array_t* _ccv_dpm_collect_all(gsl_rng* rng, ccv_dense_matrix_t* image, ccv_dpm_mixture_model_t* model, ccv_dpm_param_t params, float threshold)
+static ccv_array_t* 
+_ccv_dpm_collect_all(gsl_rng* rng, 
+					 ccv_dense_matrix_t* image, 
+					 ccv_dpm_mixture_model_t* model, 
+					 ccv_dpm_param_t params, 
+					 float threshold)
 {
 	int i, j, k, x, y;
 	double scale = pow(2.0, 1.0 / (params.interval + 1.0));
 	int next = params.interval + 1;
 	int scale_upto = _ccv_dpm_scale_upto(image, &model, 1, params.interval);
+
 	if (scale_upto < 0)
 		return 0;
+
 	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
 	_ccv_dpm_feature_pyramid(image, pyr, scale_upto, params.interval);
 	ccv_array_t* av = ccv_array_new(sizeof(ccv_dpm_feature_vector_t*), 64, 0);
 	int enough = 64 / model->count;
 	int* order = (int*)alloca(sizeof(int) * model->count);
+
 	for (i = 0; i < model->count; i++)
 		order[i] = i;
+
 	gsl_ran_shuffle(rng, order, model->count, sizeof(int));
+
+	// 按组件搜索
 	for (i = 0; i < model->count; i++)
 	{
 		ccv_dpm_root_classifier_t* root_classifier = model->root + order[i];
 		double scale_x = 1.0;
 		double scale_y = 1.0;
+
+		// 按尺度空间搜索
 		for (j = next; j < scale_upto + next * 2; j++)
 		{
 			ccv_dense_matrix_t* root_feature = 0;
@@ -1116,44 +1179,73 @@ static ccv_array_t* _ccv_dpm_collect_all(gsl_rng* rng, ccv_dense_matrix_t* image
 			int rwh = (root_classifier->root.w->rows - 1) / 2, rww = (root_classifier->root.w->cols - 1) / 2;
 			int rwh_1 = root_classifier->root.w->rows / 2, rww_1 = root_classifier->root.w->cols / 2;
 			float* f_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
+
+			// 按根w的高来搜索	
 			for (y = rwh; y < root_feature->rows - rwh_1; y++)
 			{
+				// 按根w的宽来搜索	
 				for (x = rww; x < root_feature->cols - rww_1; x++)
+				{
 					if (f_ptr[x] + root_classifier->beta > threshold)
 					{
+						// 初始化特征向量v
 						// initialize v
 						ccv_dpm_feature_vector_t* v = (ccv_dpm_feature_vector_t*)ccmalloc(sizeof(ccv_dpm_feature_vector_t));
 						_ccv_dpm_initialize_feature_vector_on_pattern(v, root_classifier, order[i]);
+
+						// 收集特征向量
 						_ccv_dpm_collect_feature_vector(v, f_ptr[x] + root_classifier->beta, x, y, pyr[j], pyr[j - next], dx, dy);
+
+						// 记录收集到特征向量的尺度空间信息
 						v->scale_x = scale_x;
 						v->scale_y = scale_y;
+
+						// 将收集到的特征向量压入堆栈av
 						ccv_array_push(av, &v);
+
 						if (av->rnum >= enough * (i + 1))
 							break;
 					}
+				}
+				
 				f_ptr += root_feature->cols;
+
 				if (av->rnum >= enough * (i + 1))
 					break;
 			}
+
+			// 按部件个数释放部件特征向量和位移
 			for (k = 0; k < root_classifier->count; k++)
 			{
 				ccv_matrix_free(part_feature[k]);
 				ccv_matrix_free(dx[k]);
 				ccv_matrix_free(dy[k]);
 			}
+			
 			ccv_matrix_free(root_feature);
 			scale_x *= scale;
 			scale_y *= scale;
+			
 			if (av->rnum >= enough * (i + 1))
 				break;
+			
 		}
 	}
+	
 	for (i = 0; i < scale_upto + next * 2; i++)
 		ccv_matrix_free(pyr[i]);
+	
 	return av;
 }
 
-static void _ccv_dpm_collect_from_background(ccv_array_t* av, gsl_rng* rng, char** bgfiles, int bgnum, ccv_dpm_mixture_model_t* model, ccv_dpm_new_param_t params, float threshold)
+static void 
+_ccv_dpm_collect_from_background(ccv_array_t* av, 
+								 gsl_rng* rng, 
+								 char** bgfiles, 
+								 int bgnum, 
+								 ccv_dpm_mixture_model_t* model, 
+								 ccv_dpm_new_param_t params, 
+								 float threshold)
 {
 	int i, j;
 	int* order = (int*)ccmalloc(sizeof(int) * bgnum);
@@ -1163,25 +1255,36 @@ static void _ccv_dpm_collect_from_background(ccv_array_t* av, gsl_rng* rng, char
 	
 	gsl_ran_shuffle(rng, order, bgnum, sizeof(int));
 
+	// 按背景图的数量循环
 	// 8: for j := 1 to m do
 	for (i = 0; i < bgnum; i++)
 	{
 		FLUSH(CCV_CLI_INFO, " - collecting negative examples -- (%d%%)", av->rnum * 100 / params.negative_cache_size);
 		ccv_dense_matrix_t* image = 0;
+
+		// 将当前背景图读到image里
 		ccv_read(bgfiles[order[i]], &image, (params.grayscale ? CCV_IO_GRAY : 0) | CCV_IO_ANY_FILE);
 
+		// 将当前背景图里的所有负样本收集到at里面
 		// 10: Add detect-all(Beta, Jj, -(1 + Delta)) to Fn
 		ccv_array_t* at = _ccv_dpm_collect_all(rng, image, model, params.detector, threshold);
 
 		if (at)
 		{
+			// 按负样本的数量循环
 			for (j = 0; j < at->rnum; j++)
+			{
+				// 将当前背景样本集里的每个负样本压栈到av里面
 				ccv_array_push(av, ccv_array_get(at, j));
+			}
+			
 			ccv_array_free(at);
 		}
 
+		// 释放当前背景图
 		ccv_matrix_free(image);
 
+		// 如果负样本数量超过了负样本缓冲区大小则退出收集
 		// 9: if |Fn >= memory-limit| then break 
 		if (av->rnum >= params.negative_cache_size)
 			break;
@@ -1221,8 +1324,12 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 	{
 		FLUSH(CCV_CLI_INFO, " - collecting responses from positive examples : %d%%", i * 100 / posnum);
 		ccv_dense_matrix_t* image = 0;
+
+		// 将正样本文件读到输出图像列表image里面
+		// 正样本文件,输出图像,类型
 		ccv_read(posfiles[i], &image, (params.grayscale ? CCV_IO_GRAY : 0) | CCV_IO_ANY_FILE);
 
+		// 从正样本图像集image里面找到离分类面最远的正样本集
 		posv[i] = _ccv_dpm_collect_best(image, model, bboxes[i], params.include_overlap, params.detector);
 
 		if (posv[i])
@@ -1249,10 +1356,12 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 		
 		for (j = 0; j < posnum; j++)
 		{
+			// 获取当前正样本向量	
 			ccv_dpm_feature_vector_t* v = posv[j];
 
 			if (v && v->id == i)
 			{
+				// 访问矩阵中的第i+1行，j+1列的元素
 				gsl_matrix_set(X, c, 0, 1.0);
 
 				for (k = 0; k < v->count; k++)
@@ -1262,6 +1371,8 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 				}
 
 				ccv_rect_t bbox = bboxes[j];
+
+				// 对vector赋值, vector名称, 分量序号, 值
 				gsl_vector_set(y[0], 
 							   c, 
 							   (bbox.x + bbox.width * 0.5) / (v->scale_x * CCV_DPM_WINDOW_SIZE) - v->x);

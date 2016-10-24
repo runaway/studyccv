@@ -2240,7 +2240,8 @@ typedef struct {
 	ccv_convnet_layer_sgd_param_t bias; /**< A **ccv_convnet_layer_sgd_param_t** specifies the stochastic gradient descent update rule for bias, it is only applicable for full connect layer and convolutional layer weight. */
 } ccv_convnet_layer_train_param_t;
 
-typedef struct {
+typedef struct 
+{
 	int max_epoch; /**< The number of epoch (an epoch sweeps through all the examples) to go through before end the training. */
 	int mini_batch; /**< The number of examples for a batch in stochastic gradient descent. */
 	int iterations; /**< The number of iterations (an iteration is for one batch) before save the progress. */
@@ -2250,10 +2251,13 @@ typedef struct {
 	int peer_access; /**< Enable peer access for cross device communications or not, this will enable faster multiple device training. */
 	float image_manipulation; /**< The value for image brightness / contrast / saturation manipulations. */
 	float color_gain; /**< The color variance for data augmentation (0 means no such augmentation). */
-	struct {
+
+	struct 
+	{
 		int min_dim; /**< [input.min_dim] The minimum dimensions for random resize of training images. */
 		int max_dim; /**< [input.max_dim] The maximum dimensions for random resize of training images. */
 	} input;
+
 	ccv_convnet_layer_train_param_t* layer_params; /**< An C-array of **ccv_convnet_layer_train_param_t** training parameters for each layer. */
 } ccv_convnet_train_param_t;
 

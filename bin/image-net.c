@@ -24,7 +24,8 @@ static void exit_with_help(void)
 
 int main(int argc, char** argv)
 {
-	static struct option image_net_options[] = {
+	static struct option image_net_options[] = 
+	{
 		/* help */
 		{"help", 0, 0, 0},
 		/* required parameters */
@@ -37,11 +38,14 @@ int main(int argc, char** argv)
 		{"iterations", 1, 0, 0},
 		{0, 0, 0, 0}
 	};
+	
 	char* train_list = 0;
 	char* test_list = 0;
 	char* working_dir = 0;
 	char* base_dir = 0;
-	ccv_convnet_train_param_t train_params = {
+	
+	ccv_convnet_train_param_t train_params = 
+	{
 		.max_epoch = 100,
 		.mini_batch = 128,
 		.sgd_frequency = 1, // do sgd every sgd_frequency batches (mini_batch * device_count * sgd_frequency)
@@ -56,7 +60,9 @@ int main(int argc, char** argv)
 			.max_dim = 257,
 		},
 	};
+	
 	int i, c;
+	
 	while (getopt_long_only(argc, argv, "", image_net_options, &c) != -1)
 	{
 		switch (c)
@@ -83,8 +89,10 @@ int main(int argc, char** argv)
 				break;
 		}
 	}
+	
 	if (!train_list || !test_list || !working_dir)
 		exit_with_help();
+	
 	ccv_enable_default_cache();
 	FILE *r0 = fopen(train_list, "r");
 	assert(r0 && "train-list doesn't exists");
@@ -93,42 +101,57 @@ int main(int argc, char** argv)
 	char* file = (char*)malloc(1024);
 	int dirlen = (base_dir != 0) ? strlen(base_dir) + 1 : 0;
 	ccv_array_t* categorizeds = ccv_array_new(sizeof(ccv_categorized_t), 64, 0);
+	
 	while (fscanf(r0, "%d %s", &c, file) != EOF)
 	{
 		char* filename = (char*)ccmalloc(1024);
+		
 		if (base_dir != 0)
 		{
 			strncpy(filename, base_dir, 1024);
 			filename[dirlen - 1] = '/';
 		}
+		
 		strncpy(filename + dirlen, file, 1024 - dirlen);
-		ccv_file_info_t file_info = {
+
+		ccv_file_info_t file_info = 
+		{
 			.filename = filename,
 		};
+		
 		// imageNet's category class starts from 1, thus, minus 1 to get 0-index
 		ccv_categorized_t categorized = ccv_categorized(c - 1, 0, &file_info);
 		ccv_array_push(categorizeds, &categorized);
 	}
+	
 	fclose(r0);
 	ccv_array_t* tests = ccv_array_new(sizeof(ccv_categorized_t), 64, 0);
+	
 	while (fscanf(r1, "%d %s", &c, file) != EOF)
 	{
 		char* filename = (char*)ccmalloc(1024);
+
 		if (base_dir != 0)
 		{
 			strncpy(filename, base_dir, 1024);
 			filename[dirlen - 1] = '/';
 		}
+		
 		strncpy(filename + dirlen, file, 1024 - dirlen);
-		ccv_file_info_t file_info = {
+
+		ccv_file_info_t file_info = 
+		{
 			.filename = filename,
 		};
+		
 		// imageNet's category class starts from 1, thus, minus 1 to get 0-index
 		ccv_categorized_t categorized = ccv_categorized(c - 1, 0, &file_info);
 		ccv_array_push(tests, &categorized);
 	}
+	
 	fclose(r1);
 	free(file);
+	
 // #define model_params vgg_d_params
 #define model_params matt_params
 	int depth = sizeof(model_params) / sizeof(ccv_convnet_layer_param_t);
@@ -136,6 +159,7 @@ int main(int argc, char** argv)
 	ccv_convnet_verify(convnet, 1000);
 	ccv_convnet_layer_train_param_t layer_params[depth];
 	memset(layer_params, 0, sizeof(layer_params));
+
 	for (i = 0; i < depth; i++)
 	{
 		layer_params[i].w.decay = 0.0005;
@@ -145,11 +169,16 @@ int main(int argc, char** argv)
 		layer_params[i].bias.learn_rate = 0.01;
 		layer_params[i].bias.momentum = 0.9;
 	}
+
+	// 在0.5的丢失率下在最后设置两个全连接层
 	// set the two full connect layers to last with dropout rate at 0.5
 	for (i = depth - 3; i < depth - 1; i++)
 		layer_params[i].dor = 0.5;
+	
 	train_params.layer_params = layer_params;
 	ccv_set_cli_output_levels(ccv_cli_output_level_and_above(CCV_CLI_INFO));
+
+	// 监督训练
 	ccv_convnet_supervised_train(convnet, categorizeds, tests, working_dir, train_params);
 	ccv_convnet_free(convnet);
 	ccv_disable_cache();

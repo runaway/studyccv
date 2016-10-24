@@ -155,11 +155,16 @@ int main(int argc, char** argv)
 // #define model_params vgg_d_params
 #define model_params matt_params
 	int depth = sizeof(model_params) / sizeof(ccv_convnet_layer_param_t);
+
+	// 创建新的卷积网络
 	ccv_convnet_t* convnet = ccv_convnet_new(1, ccv_size(257, 257), model_params, depth);
+
+	// 校验新创建的卷积网络
 	ccv_convnet_verify(convnet, 1000);
 	ccv_convnet_layer_train_param_t layer_params[depth];
 	memset(layer_params, 0, sizeof(layer_params));
 
+	// 按网络深度循环设置每一层的参数
 	for (i = 0; i < depth; i++)
 	{
 		layer_params[i].w.decay = 0.0005;
@@ -173,13 +178,17 @@ int main(int argc, char** argv)
 	// 在0.5的丢失率下在最后设置两个全连接层
 	// set the two full connect layers to last with dropout rate at 0.5
 	for (i = depth - 3; i < depth - 1; i++)
+	{
 		layer_params[i].dor = 0.5;
+	}
 	
 	train_params.layer_params = layer_params;
 	ccv_set_cli_output_levels(ccv_cli_output_level_and_above(CCV_CLI_INFO));
 
 	// 监督训练
 	ccv_convnet_supervised_train(convnet, categorizeds, tests, working_dir, train_params);
+
+	// 释放网络
 	ccv_convnet_free(convnet);
 	ccv_disable_cache();
 	return 0;

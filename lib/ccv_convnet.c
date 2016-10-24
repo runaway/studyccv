@@ -20,6 +20,15 @@
 
 #ifndef CASE_TESTS
 
+/*
+Create a new (deep) convolutional network with specified parameters. ccv only supports convolutional layer (shared weights), max pooling layer, average pooling layer, full connect layer and local response normalization layer.
+
+use_cwc_accel: Whether use CUDA-enabled GPU to accelerate various computations for convolutional network.
+input: Ihe input size of the image, it is not necessarily the input size of the first convolutional layer.
+params[]: The C-array of ccv_convnet_layer_param_t that specifies the parameters for each layer.
+count: The size of params[] C-array.
+return: A new deep convolutional network structs
+*/
 ccv_convnet_t* ccv_convnet_new(int use_cwc_accel, ccv_size_t input, ccv_convnet_layer_param_t params[], int count)
 {
 	ccv_convnet_t* convnet = (ccv_convnet_t*)ccmalloc(sizeof(ccv_convnet_t) + sizeof(ccv_convnet_layer_t) * count + sizeof(ccv_dense_matrix_t*) * count * 2);
@@ -97,41 +106,64 @@ ccv_convnet_t* ccv_convnet_new(int use_cwc_accel, ccv_size_t input, ccv_convnet_
 	return convnet;
 }
 
+/*
+Verify the specified parameters make sense as a deep convolutional network.
+
+convnet: A deep convolutional network to verify.
+output: The output number of nodes (for the last full connect layer).
+return: 0 if the given deep convolutional network making sense.
+*/
 int ccv_convnet_verify(ccv_convnet_t* convnet, int output)
 {
 	int i, out_rows, out_cols, out_partition;
+
 	if (convnet->count < 1)
 		return -1;
+
+	// 最后一层必须是全连接层
 	// the last layer has to be full connect
 	if (convnet->layers[convnet->count - 1].type != CCV_CONVNET_FULL_CONNECT)
 		return -1;
+
+	// 在最后一层上不能使能relu
 	// you cannot enable relu on the last layer
 	if (convnet->layers[convnet->count - 1].net.full_connect.relu)
 		return -1;
+	
 	for (i = 0; i < convnet->count; i++)
 	{
 		ccv_convnet_layer_t* layer = convnet->layers + i;
+
 		if (i > 0 && (out_rows != layer->input.matrix.rows || out_cols != layer->input.matrix.cols))
 			return -1;
+
 		ccv_convnet_make_output(layer, layer->input.matrix.rows, layer->input.matrix.cols, &out_rows, &out_cols, &out_partition);
 	}
+	
 	if (out_rows * out_cols != output)
 		return -1;
+
 	int count = 0;
+
 	for (i = 0; i < convnet->count; i++)
 	{
 		ccv_convnet_layer_t* layer = convnet->layers + i;
+
+		// 找到第一个全连接层
 		if (layer->type == CCV_CONVNET_FULL_CONNECT)
 		{
 			count = i;
 			break;
 		}
 	}
+
+	// 在第一个全连接层之后的所有层都应该只是全连接层
 	// all the layers after the first full connect layer should only be full connect layer
 	for (i = count; i < convnet->count; i++)
 		if (convnet->layers[i].type != CCV_CONVNET_FULL_CONNECT ||
 			convnet->layers[i].input.matrix.rows * convnet->layers[i].input.matrix.cols * convnet->layers[i].input.matrix.channels != convnet->layers[i].input.node.count)
 			return -1;
+		
 	return 0;
 }
 
@@ -334,20 +366,36 @@ static inline void _ccv_convnet_convolutional_forward_propagate_neon(ccv_convnet
 #undef main_for
 }
 #else
-static inline void _ccv_convnet_convolutional_forward_propagate_fallback(ccv_convnet_layer_t* layer, ccv_dense_matrix_t* a, ccv_dense_matrix_t* db, int rows, int cols, int ch, int count, int strides, int border, int kernel_rows, int kernel_cols, int ch_per_partition, int count_per_partition)
+static inline void 
+_ccv_convnet_convolutional_forward_propagate_fallback(ccv_convnet_layer_t* layer, 
+													  ccv_dense_matrix_t* a, 
+													  ccv_dense_matrix_t* db, 
+													  int rows, 
+													  int cols, 
+													  int ch, 
+													  int count, 
+													  int strides, 
+													  int border, 
+													  int kernel_rows, 
+													  int kernel_cols, 
+													  int ch_per_partition, 
+													  int count_per_partition)
 {
-	parallel_for(k, count) {
+	parallel_for(k, count) 
+	{
 		int i, j, x, y, c;
 		int p = k / count_per_partition;
 		float* ap = a->data.f32 + p * ch_per_partition;
 		float* bp = db->data.f32 + k;
 		float* layer_w = layer->w + k * kernel_rows * kernel_cols * ch_per_partition;
 		float bias = layer->bias[k];
+
 		for (i = 0; i < db->rows; i++)
 		{
 			int comy = ccv_max(i * strides - border, 0) - (i * strides - border);
 			int maxy = kernel_rows - comy - (i * strides + kernel_rows - ccv_min(a->rows + border, i * strides + kernel_rows));
 			comy *= ch_per_partition * kernel_cols;
+
 			for (j = 0; j < db->cols; j++)
 			{
 				float v = bias;
@@ -355,6 +403,8 @@ static inline void _ccv_convnet_convolutional_forward_propagate_fallback(ccv_con
 				int maxx = kernel_cols - comx - (j * strides + kernel_cols - ccv_min(a->cols + border, j * strides + kernel_cols));
 				float* w = layer_w + comx * ch_per_partition + comy;
 				float* apz = ap + ccv_max(j * strides - border, 0) * ch;
+
+				// 当有了边界时，则简单的做零填充
 				// when we have border, we simply do zero padding
 				for (y = 0; y < maxy; y++)
 				{
@@ -364,8 +414,10 @@ static inline void _ccv_convnet_convolutional_forward_propagate_fallback(ccv_con
 					w += kernel_cols * ch_per_partition;
 					apz += a->cols * ch;
 				}
+				
 				bp[j * count] = ccv_max(0, v); // ReLU
 			}
+			
 			bp += db->cols * count;
 			ap += a->cols * ch * (ccv_max((i + 1) * strides - border, 0) - ccv_max(i * strides - border, 0));
 		}
@@ -567,18 +619,23 @@ static void _ccv_convnet_layer_forward_propagate(ccv_convnet_layer_t* layer, ccv
 		case CCV_CONVNET_CONVOLUTIONAL:
 			_ccv_convnet_convolutional_forward_propagate(layer, a, b);
 			break;
+			
 		case CCV_CONVNET_FULL_CONNECT:
 			_ccv_convnet_full_connect_forward_propagate(layer, a, b);
 			break;
+			
 		case CCV_CONVNET_LOCAL_RESPONSE_NORM:
 			_ccv_convnet_rnorm_forward_propagate(layer, a, b, denoms);
 			break;
+			
 		case CCV_CONVNET_MAX_POOL:
 			_ccv_convnet_max_pool_forward_propagate(layer, a, b);
 			break;
+			
 		case CCV_CONVNET_AVERAGE_POOL:
 			_ccv_convnet_average_pool_forward_propagate(layer, a, b);
 			break;
+			
 	}
 }
 
@@ -636,7 +693,20 @@ static void _ccv_convnet_compute_softmax_parallel(ccv_dense_matrix_t* a, ccv_den
 
 #ifndef CASE_TESTS
 
-void ccv_convnet_encode(ccv_convnet_t* convnet, ccv_dense_matrix_t** a, ccv_dense_matrix_t** b, int batch)
+// 用卷积网络来把图像编码成紧凑表示
+/*
+Use a convolutional network to encode an image into a compact representation.
+
+convnet: The given convolutional network.
+a: A C-array of input images.
+b: A C-array of output matrix of compact representation.
+batch: The number of input images.
+*/
+
+void ccv_convnet_encode(ccv_convnet_t* convnet, 
+						ccv_dense_matrix_t** a, 
+						ccv_dense_matrix_t** b, 
+						int batch)
 {
 #ifdef HAVE_CUDA
 	if (convnet->use_cwc_accel)
@@ -648,15 +718,21 @@ void ccv_convnet_encode(ccv_convnet_t* convnet, ccv_dense_matrix_t** a, ccv_dens
 	assert((*a)->rows == convnet->rows);
 	assert((*a)->cols == convnet->cols);
 	int i;
+
+	// 如果编码到一个不同的矩阵则保存神经缓冲里的最后一层
 	// save the last layer of neuron cache in case that we encode to a different matrix
 	ccv_dense_matrix_t* out_neuron = convnet->acts[convnet->count - 1];
 	convnet->acts[convnet->count - 1] = *b;
 	_ccv_convnet_layer_forward_propagate(convnet->layers, *a, convnet->acts, convnet->denoms);
+
 	for (i = 1; i < convnet->count; i++)
 		_ccv_convnet_layer_forward_propagate(convnet->layers + i, convnet->acts[i - 1], convnet->acts + i, convnet->denoms + i);
+
 	if (convnet->acts + convnet->count - 1 != b)
 	{
 		*b = convnet->acts[convnet->count - 1];
+
+		// 恢复神经缓冲里的最后一层
 		// restore the last layer of neuron cache
 		convnet->acts[convnet->count - 1] = out_neuron;
 	}
@@ -705,6 +781,16 @@ static int _ccv_convnet_find_full_connect(ccv_convnet_t* convnet)
 	return -1;
 }
 
+/*
+Use a convolutional network to classify an image into categories.
+
+convnet: The given convolutional network.
+a: A C-array of input images.
+symmetric: Whether the input is symmetric.
+ranks: A C-array of ccv_array_t contains top categories by the convolutional network.
+tops: The number of top categories return for each image.
+batch: The number of input images.
+*/
 void ccv_convnet_classify(ccv_convnet_t* convnet, ccv_dense_matrix_t** a, int symmetric, ccv_array_t** ranks, int tops, int batch)
 {
 #ifdef HAVE_CUDA
@@ -940,30 +1026,45 @@ static void _ccv_convnet_convolutional_backward_propagate(ccv_convnet_layer_t* l
 	a->rows = a_rows, a->cols = a_cols, a->type = (a->type - CCV_GET_CHANNEL(a->type)) | a_ch;
 }
 
-static void _ccv_convnet_full_connect_backward_propagate(ccv_convnet_layer_t* layer, ccv_dense_matrix_t* a, ccv_dense_matrix_t* y, ccv_dense_matrix_t* x, ccv_dense_matrix_t** b, ccv_convnet_layer_t* update_params)
+static void 
+_ccv_convnet_full_connect_backward_propagate(ccv_convnet_layer_t* layer, 
+											 ccv_dense_matrix_t* a, 
+											 ccv_dense_matrix_t* y, 
+											 ccv_dense_matrix_t* x, 
+											 ccv_dense_matrix_t** b, 
+											 ccv_convnet_layer_t* update_params)
 {
 	// a is the input gradient (for back prop), y is the output (for forward prop)
 	// x is the input (for forward prop), b is the output gradient (gradient, or known as propagated error)
 	ccv_dense_matrix_t* db = 0;
+	
 	if (b)
 		db = *b = ccv_dense_matrix_renew(*b, x->rows, x->cols, CCV_32F | CCV_GET_CHANNEL(x->type), CCV_32F | CCV_GET_CHANNEL(x->type), 0);
 	int x_rows = x->rows, x_cols = x->cols, x_ch = CCV_GET_CHANNEL(x->type);
 	x->rows = x_rows * x_cols * x_ch, x->cols = 1, x->type = (x->type - x_ch) | CCV_C1;
 	x->step = x->cols * CCV_GET_DATA_TYPE_SIZE(x->type);
 	int i;
+	
 	if (layer->net.full_connect.relu)
 		for (i = 0; i < y->rows; i++)
 			if (y->data.f32[i] <= 0)
 				a->data.f32[i] = 0;
+			
 	ccv_dense_matrix_t w = ccv_dense_matrix(a->rows, x->rows, CCV_32F | CCV_C1, update_params->w, 0);
 	ccv_dense_matrix_t* dw = &w;
+
+	// 计算偏差梯度 
 	// compute bias gradient
 	ccv_dense_matrix_t bias = ccv_dense_matrix(a->rows, 1, CCV_32F | CCV_C1, update_params->bias, 0);
 	ccv_dense_matrix_t* dbias = &bias;
 	ccv_add(a, dbias, (ccv_matrix_t**)&dbias, 0);
+
+	// 计算权重梯度
 	// compute weight gradient
 	ccv_gemm(a, x, 1, dw, 1, CCV_B_TRANSPOSE, (ccv_matrix_t**)&dw, 0);
 	w = ccv_dense_matrix(a->rows, x->rows, CCV_32F | CCV_C1, layer->w, 0);
+
+	// 传播误差
 	// propagate error
 	if (db)
 	{
@@ -973,6 +1074,7 @@ static void _ccv_convnet_full_connect_backward_propagate(ccv_convnet_layer_t* la
 		db->rows = x_rows, db->cols = x_cols, db->type = (db->type - CCV_GET_CHANNEL(db->type)) | x_ch;
 		db->step = db->cols * CCV_GET_DATA_TYPE_SIZE(db->type) * CCV_GET_CHANNEL(db->type);
 	}
+	
 	x->rows = x_rows, x->cols = x_cols, x->type = (x->type - CCV_GET_CHANNEL(x->type)) | x_ch;
 	x->step = x->cols * CCV_GET_DATA_TYPE_SIZE(x->type) * CCV_GET_CHANNEL(x->type);
 }
@@ -1108,26 +1210,33 @@ static void _ccv_convnet_propagate_loss(ccv_convnet_t* convnet, ccv_dense_matrix
 	ccv_convnet_layer_t* layer = convnet->layers + convnet->count - 1;
 	assert(layer->type == CCV_CONVNET_FULL_CONNECT); // the last layer has too be a full connect one to generate softmax result
 	_ccv_convnet_full_connect_backward_propagate(layer, dloss, convnet->acts[convnet->count - 1], convnet->acts[convnet->count - 2], convnet->count - 1 > 0 ? update_params->acts + convnet->count - 2 : 0, update_params->layers + convnet->count - 1);
+
 	for (i = convnet->count - 2; i >= 0; i--)
 	{
 		layer = convnet->layers + i;
+		
 		switch (layer->type)
 		{
 			case CCV_CONVNET_CONVOLUTIONAL:
 				_ccv_convnet_convolutional_backward_propagate(layer, update_params->acts[i], convnet->acts[i], i > 0 ? convnet->acts[i - 1] : a, i > 0 ? update_params->acts + i - 1 : 0, update_params->layers + i);
 				break;
+				
 			case CCV_CONVNET_FULL_CONNECT:
 				_ccv_convnet_full_connect_backward_propagate(layer, update_params->acts[i], convnet->acts[i], i > 0 ? convnet->acts[i - 1] : a, i > 0 ? update_params->acts + i - 1 : 0, update_params->layers + i);
 				break;
+				
 			case CCV_CONVNET_LOCAL_RESPONSE_NORM:
 				_ccv_convnet_rnorm_backward_propagate(layer, update_params->acts[i], convnet->acts[i], i > 0 ? convnet->acts[i - 1] : a, convnet->denoms[i], i > 0 ? update_params->acts + i - 1 : 0);
 				break;
+				
 			case CCV_CONVNET_MAX_POOL:
 				_ccv_convnet_max_pool_backward_propagate(layer, update_params->acts[i], convnet->acts[i], i > 0 ? convnet->acts[i - 1] : a, i > 0 ? update_params->acts + i - 1 : 0);
 				break;
+				
 			case CCV_CONVNET_AVERAGE_POOL:
 				_ccv_convnet_average_pool_backward_propagate(layer, update_params->acts[i], i > 0 ? convnet->acts[i - 1] : a, i > 0 ? update_params->acts + i - 1 : 0);
 				break;
+				
 		}
 	}
 }
@@ -1285,6 +1394,15 @@ static void _ccv_convnet_classify(ccv_convnet_t* convnet, ccv_dense_matrix_t** a
 
 #ifndef CASE_TESTS
 
+/*
+Start to train a deep convolutional network with given parameters and data.
+
+convnet: A deep convolutional network that is initialized.
+categorizeds: An array of images with its category information for training.
+tests: An array of images with its category information for validating.
+filename: The working file to save progress and the trained convolutional network.
+params: A ccv_convnet_train_param_t that specifies the training parameters.
+*/
 void ccv_convnet_supervised_train(ccv_convnet_t* convnet, 
 								  ccv_array_t* categorizeds, 
 								  ccv_array_t* tests, 
@@ -1294,8 +1412,11 @@ void ccv_convnet_supervised_train(ccv_convnet_t* convnet,
 #ifdef HAVE_GSL
 #ifdef HAVE_CUDA
 	if (convnet->use_cwc_accel)
+	{
 		cwc_convnet_supervised_train(convnet, categorizeds, tests, filename, params);
-	else {
+	}
+	else 
+	{
 #endif
 	int i, j, t;
 	gsl_rng_env_setup();
@@ -1303,8 +1424,10 @@ void ccv_convnet_supervised_train(ccv_convnet_t* convnet,
 	int aligned_padding = categorizeds->rnum % params.mini_batch;
 	int aligned_rnum = categorizeds->rnum - aligned_padding;
 	int* idx = (int*)ccmalloc(sizeof(int) * (categorizeds->rnum + aligned_padding));
+
 	for (i = 0; i < categorizeds->rnum; i++)
 		idx[i] = i;
+	
 	gsl_ran_shuffle(rng, idx, categorizeds->rnum, sizeof(int));
 
 	// 最后一层必须是全连接，因此我们把它用作softmax层
@@ -1333,6 +1456,7 @@ void ccv_convnet_supervised_train(ccv_convnet_t* convnet,
 			for (j = 0; j < category_count; j++)
 				dloss[j] = (j == categorized->c) - dloss[j];
 
+			// 传播误差
 			_ccv_convnet_propagate_loss(convnet, categorized->matrix, softmax, update_params);
 
 			if ((i + 1) % params.mini_batch == 0)
@@ -1360,6 +1484,7 @@ void ccv_convnet_supervised_train(ccv_convnet_t* convnet,
 
 			// 分类
 			_ccv_convnet_classify(convnet, &test->matrix, &c, 1);
+
 			if (c != test->c)
 				++miss;
 		}
@@ -1389,6 +1514,11 @@ void ccv_convnet_supervised_train(ccv_convnet_t* convnet,
 #endif
 }
 
+/*
+Free up temporary resources of a given convolutional network.
+
+convnet: A convolutional network.
+*/
 void ccv_convnet_compact(ccv_convnet_t* convnet)
 {
 #ifdef HAVE_CUDA
@@ -1414,6 +1544,13 @@ void ccv_convnet_compact(ccv_convnet_t* convnet)
 	}
 }
 
+/*
+Write a convolutional network to a disk.
+
+convnet: A given convolutional network.
+filename: The file on the disk.
+params: A ccv_convnet_write_param_t to specify the write parameters.
+*/
 void ccv_convnet_write(ccv_convnet_t* convnet, const char* filename, ccv_convnet_write_param_t params)
 {
 	sqlite3* db = 0;
@@ -1536,6 +1673,12 @@ void ccv_convnet_write(ccv_convnet_t* convnet, const char* filename, ccv_convnet
 	}
 }
 
+/*
+Read a convolutional network that persisted on the disk.
+
+use_cwc_accel: Use CUDA-enabled GPU acceleration.
+filename: The file on the disk.
+*/
 ccv_convnet_t* ccv_convnet_read(int use_cwc_accel, const char* filename)
 {
 	sqlite3* db = 0;
@@ -1700,6 +1843,11 @@ void ccv_convnet_input_formation(ccv_size_t input, ccv_dense_matrix_t* a, ccv_de
 		ccv_shift(a, (ccv_matrix_t**)b, CCV_32F, 0, 0); // converting to 32f
 }
 
+/*
+Free up the memory of a given convolutional network.
+
+convnet: A convolutional network.
+*/
 void ccv_convnet_free(ccv_convnet_t* convnet)
 {
 	ccv_convnet_compact(convnet);

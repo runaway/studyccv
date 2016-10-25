@@ -283,12 +283,16 @@ int main(int argc, char** argv)
 			.device_count = 1,
 			.layer_params = layer_params,
 		};
+		
 		ccv_convnet_supervised_train(convnet, categorizeds, tests, "cifar-10.sqlite3", params);
 	}
+	
 	if (r1)
 		fclose(r1);
+	
 	if (r2)
 		fclose(r2);
+	
 	ccv_convnet_free(convnet);
 	ccv_disable_cache();
 	return 0;

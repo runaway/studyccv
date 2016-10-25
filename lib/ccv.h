@@ -85,14 +85,17 @@ typedef union {
 	double* f64;
 } ccv_matrix_cell_t;
 
-typedef struct {
+typedef struct 
+{
 	int type;
 	uint64_t sig;
 	int refcount;
 	int rows;
 	int cols;
 	int step;
-	union {
+	
+	union 
+	{
 		unsigned char u8;
 		int i32;
 		float f32;
@@ -100,6 +103,7 @@ typedef struct {
 		double f64;
 		void* p;
 	} tag;
+	
 	ccv_matrix_cell_t data;
 } ccv_dense_matrix_t;
 
@@ -805,11 +809,12 @@ inline static int ccv_rect_is_zero(ccv_rect_t rect)
 	return rect.x == 0 && rect.y == 0 && rect.width == 0 && rect.height == 0;
 }
 
-typedef struct {
+typedef struct 
+{
 	int type;
 	uint64_t sig;
 	int refcount;
-	int rnum;
+	int rnum; // 数组的初始容量
 	int size;
 	int rsize;
 	void* data;
@@ -2247,17 +2252,21 @@ typedef struct
 	void* reserved;
 } ccv_convnet_layer_t;
 
-typedef struct {
+typedef struct 
+{
 	int use_cwc_accel; // use "ccv with cuda" acceleration
+
 	// this is redundant, but good to enforcing what the input should look like
 	ccv_size_t input;
 	int rows;
 	int cols;
 	int channels;
+
 	// count and layer of the convnet
 	int count;
 	ccv_dense_matrix_t* mean_activity; // mean activity to subtract from
 	ccv_convnet_layer_t* layers; // the layer configuration
+
 	// these can be reused and we don't need to reallocate memory
 	ccv_dense_matrix_t** denoms; // denominators
 	ccv_dense_matrix_t** acts; // hidden layers and output layers
@@ -2280,7 +2289,8 @@ bias: A ccv_convnet_layer_sgd_param_t specifies the stochastic gradient descent 
 dor: The dropout rate for this layer, it is only applicable for full connect layer.
 w: A ccv_convnet_layer_sgd_param_t specifies the stochastic gradient descent update rule for weight, it is only applicable for full connect layer and convolutional layer.
 */
-typedef struct {
+typedef struct 
+{
 	// the dropout rate, I find that dor is better looking than dropout_rate,
 	// and drop out is happened on the input neuron (so that when the network
 	// is used in real-world, I simply need to multiply its weights to 1 - dor
@@ -2291,6 +2301,8 @@ typedef struct {
 } ccv_convnet_layer_train_param_t;
 
 /*
+max_epoch 训练终止前完成的epoch数目，一个epoch扫过所有的样本
+
 color_gain: The color variance for data augmentation (0 means no such augmentation).
 device_count: Use how many GPU devices, this is capped by available CUDA devices on your system. For now, ccv’s implementation only support up to 4 GPUs
 image_manipulation: The value for image brightness / contrast / saturation manipulations.

@@ -17,62 +17,100 @@ int main(int argc, char** argv)
 	ccv_enable_default_cache();
 	ccv_dense_matrix_t* image = 0;
 	ccv_read(argv[1], &image, CCV_IO_ANY_FILE | CCV_IO_RGB_COLOR);
+
+	// 如果从argv[1]读图成功
 	if (image != 0)
 	{
+		// 从argv[2]读取卷积网络
 		ccv_convnet_t* convnet = ccv_convnet_read(0, argv[2]);
 		ccv_dense_matrix_t* input = 0;
+
+		// 提取输入信息到input
 		ccv_convnet_input_formation(convnet->input, image, &input);
+
+		// 释放图像矩阵
 		ccv_matrix_free(image);
+
+		// 计时
 		unsigned int elapsed_time = get_current_time();
 		ccv_array_t* rank = 0;
+
+		// 根据输入信息进行分类,结果放到rank
 		ccv_convnet_classify(convnet, &input, 1, &rank, 5, 1);
 		elapsed_time = get_current_time() - elapsed_time;
 		int i;
+
+		// 打印分类结果
 		for (i = 0; i < rank->rnum - 1; i++)
 		{
 			ccv_classification_t* classification = (ccv_classification_t*)ccv_array_get(rank, i);
 			printf("%d %f ", classification->id + 1, classification->confidence);
 		}
-		ccv_classification_t* classification = (ccv_classification_t*)ccv_array_get(rank, rank->rnum - 1);
+		
+		ccv_classification_t* classification = 
+			(ccv_classification_t*)ccv_array_get(rank, rank->rnum - 1);
+
 		printf("%d %f\n", classification->id + 1, classification->confidence);
 		printf("elapsed time %dms\n", elapsed_time);
+		
 		ccv_array_free(rank);
 		ccv_matrix_free(input);
 		ccv_convnet_free(convnet);
-	} else {
+	} 
+	else 
+	{
+		// 打开图像列表文件	
 		FILE* r = fopen(argv[1], "rt");
+
 		if (argc == 4)
 			chdir(argv[3]);
+
 		if(r)
 		{
+			// 从argv[2]读取卷积网络
 			ccv_convnet_t* convnet = ccv_convnet_read(1, argv[2]);
 			int i, j, k = 0;
-			ccv_dense_matrix_t* images[BATCH_SIZE] = {
+			
+			ccv_dense_matrix_t* images[BATCH_SIZE] = 
+			{
 				0
 			};
+			
 			size_t len = 1024;
 			char* file = (char*)malloc(len);
 			ssize_t read;
+
+			// 从图像列表文件读取文件名file
 			while((read = getline(&file, &len, r)) != -1)
 			{
 				while(read > 1 && isspace(file[read - 1]))
 					read--;
+				
 				file[read] = 0;
+				
 				if (images[k % BATCH_SIZE] != 0)
 					ccv_matrix_free(images[k % BATCH_SIZE]);
+				
 				ccv_dense_matrix_t* image = 0;
+
+				// 读取图像文件到image
 				ccv_read(file, &image, CCV_IO_ANY_FILE | CCV_IO_RGB_COLOR);
 				assert(image != 0);
 				images[k % BATCH_SIZE] = 0;
+				
 				ccv_convnet_input_formation(convnet->input, image, images + (k % BATCH_SIZE));
 				ccv_matrix_free(image);
 				++k;
+				
 				if (k % BATCH_SIZE == 0)
 				{
-					ccv_array_t* ranks[BATCH_SIZE] = {
+					ccv_array_t* ranks[BATCH_SIZE] = 
+					{
 						0
 					};
+					
 					ccv_convnet_classify(convnet, images, 1, ranks, 5, BATCH_SIZE);
+					
 					for (i = 0; i < BATCH_SIZE; i++)
 					{
 						for (j = 0; j < ranks[i]->rnum - 1; j++)
@@ -80,21 +118,27 @@ int main(int argc, char** argv)
 							ccv_classification_t* classification = (ccv_classification_t*)ccv_array_get(ranks[i], j);
 							printf("%d %f ", classification->id + 1, classification->confidence);
 						}
+						
 						ccv_classification_t* classification = (ccv_classification_t*)ccv_array_get(ranks[i], ranks[i]->rnum - 1);
 						printf("%d %f\n", classification->id + 1, classification->confidence);
 						ccv_array_free(ranks[i]);
 					}
 				}
 			}
+			
 			if (k % BATCH_SIZE != 0)
 			{
 				if (k < BATCH_SIZE) // special casing this
 					for (i = k; i < BATCH_SIZE; i++)
 						images[i] = images[0]; // padding to BATCH_SIZE batch size
-				ccv_array_t* ranks[BATCH_SIZE] = {
+						
+				ccv_array_t* ranks[BATCH_SIZE] = 
+				{
 					0
 				};
+				
 				ccv_convnet_classify(convnet, images, 1, ranks, 5, BATCH_SIZE);
+				
 				for (i = 0; i < (k % BATCH_SIZE); i++)
 				{
 					for (j = 0; j < ranks[i]->rnum - 1; j++)
@@ -102,20 +146,26 @@ int main(int argc, char** argv)
 						ccv_classification_t* classification = (ccv_classification_t*)ccv_array_get(ranks[i], j);
 						printf("%d %f ", classification->id + 1, classification->confidence);
 					}
+					
 					ccv_classification_t* classification = (ccv_classification_t*)ccv_array_get(ranks[i], ranks[i]->rnum - 1);
 					printf("%d %f\n", classification->id + 1, classification->confidence);
 					ccv_array_free(ranks[i]);
 				}
+				
 				for (i = (k % BATCH_SIZE); i < BATCH_SIZE; i++)
 					ccv_array_free(ranks[i]);
+				
 				for (i = 0; i < ccv_min(BATCH_SIZE, k); i++)
 					ccv_matrix_free(images[i]);
 			}
+			
 			ccv_convnet_free(convnet);
 			free(file);
 			fclose(r);
 		}
 	}
+	
 	ccv_drain_cache();
+	
 	return 0;
 }

@@ -156,6 +156,7 @@ int main(int argc, char** argv)
 #define model_params matt_params
 	int depth = sizeof(model_params) / sizeof(ccv_convnet_layer_param_t);
 
+	// 1.首先使用随机函数对每一层间的连接权值矩阵和偏置向量进行随机初始化.
 	// 创建新的卷积网络
 	ccv_convnet_t* convnet = ccv_convnet_new(1, ccv_size(257, 257), model_params, depth);
 

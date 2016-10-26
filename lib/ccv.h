@@ -2264,6 +2264,8 @@ typedef struct
 
 	// count and layer of the convnet
 	int count;
+
+	// 从...减去平均活动
 	ccv_dense_matrix_t* mean_activity; // mean activity to subtract from
 	ccv_convnet_layer_t* layers; // the layer configuration
 
@@ -2302,6 +2304,7 @@ typedef struct
 
 /*
 max_epoch 训练终止前完成的epoch数目，一个epoch扫过所有的样本
+mini_batch 小批量梯度下降（Mini-batch gradient descent）：每次更新若干样本所计算的梯度的平均值
 
 color_gain: The color variance for data augmentation (0 means no such augmentation).
 device_count: Use how many GPU devices, this is capped by available CUDA devices on your system. For now, ccv’s implementation only support up to 4 GPUs

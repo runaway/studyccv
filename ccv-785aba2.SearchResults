@@ -1,34 +1,14 @@
----- prob. Matches (31 in 1 files) ----
-Ccv_dpm.c (lib):	prob.n = symmetric ? 31 * cols2c * rows + 1 : 31 * cols * rows + 1;
-Ccv_dpm.c (lib):	prob.bias = symmetric ? 0.5 : 1.0; // for symmetric, since we only pass half features in, need to set bias to be half too
-Ccv_dpm.c (lib):	// new version (1.91) of liblinear uses double instead of int (1.8) for prob.y, cannot cast for that.
-Ccv_dpm.c (lib):	prob.y = malloc(sizeof(prob.y[0]) * (cnum + negex->rnum) * (!!symmetric + 1));
-Ccv_dpm.c (lib):	prob.x = (struct feature_node**)malloc(sizeof(struct feature_node*) * (cnum + negex->rnum) * (!!symmetric + 1));
-Ccv_dpm.c (lib):				features[j].value = prob.bias;
-Ccv_dpm.c (lib):				prob.x[l] = features;
-Ccv_dpm.c (lib):				prob.y[l] = 1;
-Ccv_dpm.c (lib):				features[j].value = prob.bias;
-Ccv_dpm.c (lib):				prob.x[l] = features;
-Ccv_dpm.c (lib):				prob.y[l] = 1;
-Ccv_dpm.c (lib):				features[31 * rows * cols].value = prob.bias;
-Ccv_dpm.c (lib):				prob.x[l] = features;
-Ccv_dpm.c (lib):				prob.y[l] = 1;
-Ccv_dpm.c (lib):				features[j].value = prob.bias;
-Ccv_dpm.c (lib):				prob.x[l] = features;
-Ccv_dpm.c (lib):				prob.y[l] = -1;
-Ccv_dpm.c (lib):				features[j].value = prob.bias;
-Ccv_dpm.c (lib):				prob.x[l] = features;
-Ccv_dpm.c (lib):				prob.y[l] = -1;
-Ccv_dpm.c (lib):				features[31 * rows * cols].value = prob.bias;
-Ccv_dpm.c (lib):				prob.x[l] = features;
-Ccv_dpm.c (lib):				prob.y[l] = -1;
-Ccv_dpm.c (lib):	prob.l = l;
-Ccv_dpm.c (lib):						" - running liblinear for initial linear SVM model (L2-regularized, L1-loss)\n", prob.l, prob.n);
-Ccv_dpm.c (lib):	free(prob.y);
-Ccv_dpm.c (lib):	for (j = 0; j < prob.l; j++)
-Ccv_dpm.c (lib):		free(prob.x[j]);
-Ccv_dpm.c (lib):	free(prob.x);
----- _ccv_dpm_score_qsort Matches (3 in 1 files) ----
-Ccv_dpm.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_dpm_score_qsort, double, less_than)
-Ccv_dpm.c (lib):	_ccv_dpm_score_qsort(scores, j, 0);
-Ccv_dpm.c (lib):			_ccv_dpm_score_qsort(scores, j, 0);
+---- parallel_for Matches (13 in 5 files) ----
+Ccv_convnet.c (lib):	parallel_for(k, (count >> 2)) { \
+Ccv_convnet.c (lib):	parallel_for(k, (count >> 2)) { \
+Ccv_convnet.c (lib):	parallel_for(k, count) 
+Ccv_convnet.c (lib):	parallel_for(k, count) {
+Ccv_icf.c (lib):	parallel_for(i, feature_size) {
+Ccv_icf.c (lib):	parallel_for(i, feature_size) {
+Ccv_internal.h (lib):#define parallel_for(x, n) dispatch_apply(n, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(size_t x) {
+Ccv_internal.h (lib):#define parallel_for(x, n) { int x; for (x = 0; x < n; x++) {
+Ccv_scd.c (lib):	parallel_for(i, positives->rnum) {
+Ccv_scd.c (lib):	parallel_for(i, negatives->rnum) {
+Ccv_scd.c (lib):	parallel_for(i, features->rnum) {
+Ccv_scd.c (lib):	parallel_for(i, features->rnum) {
+Cwc_convnet_helper.c (lib\cuda):	parallel_for(i, size) {

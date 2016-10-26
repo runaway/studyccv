@@ -14,6 +14,7 @@ static int _CCV_PRINT_LOOP __attribute__ ((unused)) = 0;
 #define ccv_descale(x, n) (((x) + (1 << ((n) - 1))) >> (n))
 #define conditional_assert(x, expr) if ((x)) { assert(expr); }
 
+// dispathc_apply是dispatch_sync 和dispatch_group的关联API.它以指定的次数将指定的Block加入到指定的队列中。并等待队列中操作全部完成.
 #ifdef USE_DISPATCH
 #define parallel_for(x, n) dispatch_apply(n, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(size_t x) {
 #define parallel_endfor });

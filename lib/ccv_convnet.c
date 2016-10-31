@@ -787,14 +787,23 @@ void ccv_convnet_encode(ccv_convnet_t* convnet,
 #endif
 }
 
+// 找到正在扫描的层(它是最后一个卷积层)
 // find the layer for scanning (it is the last convolutional layer)
 static int _ccv_convnet_find_scan(ccv_convnet_t* convnet)
 {
 	int i;
 	ccv_convnet_layer_t* layers = convnet->layers;
+
+	// 从最后一层开始扫描
 	for (i = convnet->count - 1; i >= 0; i--)
+	{
+		// 如果层类型为卷积层则返回层序号	
 		if (layers[i].type == CCV_CONVNET_CONVOLUTIONAL)
+		{
 			return i;
+		}
+	}
+		
 	return -1;
 }
 
@@ -844,15 +853,27 @@ void ccv_convnet_classify(ccv_convnet_t* convnet,
 						  int tops, 
 						  int batch)
 {
+	
 #ifdef HAVE_CUDA
 	if (convnet->use_cwc_accel)
+	{
 		cwc_convnet_classify(convnet, a, symmetric, ranks, tops, batch);
-	else {
+	}
+	else 
+	{
 #endif
 	int i, j, k, t;
-	ccv_dense_matrix_t** b = (ccv_dense_matrix_t**)alloca(sizeof(ccv_dense_matrix_t*) * (convnet->count + 1));
+
+	ccv_dense_matrix_t** b 
+		= (ccv_dense_matrix_t**)alloca(sizeof(ccv_dense_matrix_t*) * (convnet->count + 1));
+
+	// 找到最后一个卷积层
 	int scan = _ccv_convnet_find_scan(convnet);
+
+	// 获取层的跨度scale
 	int scale = _ccv_convnet_derive_scale(convnet, scan);
+
+	// 找到全连接层
 	int full_connect = _ccv_convnet_find_full_connect(convnet);
 	assert(scan >= 0 && scan < convnet->count);
 	assert(full_connect >= 0 && full_connect < convnet->count);
@@ -885,16 +906,25 @@ void ccv_convnet_classify(ccv_convnet_t* convnet,
 		// 做最开始的几层直到第一个扫描层
 		// doing the first few layers until the first scan layer
 		int out_rows, out_cols, out_partition;
-		ccv_dense_matrix_t* c = ccv_dense_matrix_new(5 * (!!symmetric + 1), convnet->layers[full_connect].input.node.count, CCV_32F | CCV_C1, 0, 0);
+		ccv_dense_matrix_t* c 
+			= ccv_dense_matrix_new(5 * (!!symmetric + 1), 
+								   convnet->layers[full_connect].input.node.count, 
+								   CCV_32F | CCV_C1, 0, 0);
 
+		// 如果输入对称则循环2次，如果不对称则循环1次
 		for (t = 0; t <= !!symmetric; t++)
 		{
 			rows = b[0]->rows, cols = b[0]->cols;
 
+			// 从第0层循环到最后一个卷积层
 			for (j = 0; j < scan + 1; j++)
 			{
 				ccv_convnet_layer_t* layer = convnet->layers + j;
+
+				// 根据层类型计算设置输出行列数和分割方式
 				ccv_convnet_make_output(layer, rows, cols, &out_rows, &out_cols, &out_partition);
+
+				// 正向传播
 				_ccv_convnet_layer_forward_propagate(layer, b[j], b + j + 1, 0);
 				assert(b[j + 1]->rows == out_rows && b[j + 1]->cols == out_cols);
 
@@ -923,10 +953,12 @@ void ccv_convnet_classify(ccv_convnet_t* convnet,
 				// copy the last layer for full connect compute
 				b[full_connect] = ccv_dense_matrix_new(convnet->layers[full_connect].input.matrix.rows, convnet->layers[full_connect].input.matrix.cols, CCV_NO_DATA_ALLOC | CCV_32F | convnet->layers[full_connect].input.matrix.channels, c->data.f32 + (t * 5 + k) * convnet->layers[full_connect].input.node.count, 0);
 
+				// 从最后一个卷积层循环到全连接层
 				for (j = scan + 1; j < full_connect; j++)
 				{
 					layer = convnet->layers + j;
 
+					// 正向传播
 					_ccv_convnet_layer_forward_propagate(layer, j > scan + 1 ? b[j] : input, b + j + 1, 0);
 
 					if (j > scan + 1)
@@ -952,10 +984,13 @@ void ccv_convnet_classify(ccv_convnet_t* convnet,
 		// now have everything in c, do the last full connect propagate
 		b[full_connect] = c;
 
+		// 从全连接层循环到最后一层
 		for (j = full_connect; j < convnet->count; j++)
 		{
 			ccv_convnet_layer_t* layer = convnet->layers + j;
 			assert(layer->type == CCV_CONVNET_FULL_CONNECT);
+
+			// 全连接正向并行传播
 			_ccv_convnet_full_connect_forward_propagate_parallel(layer, b[j], b + j + 1);
 			ccv_matrix_free(b[j]);
 		}
@@ -967,20 +1002,32 @@ void ccv_convnet_classify(ccv_convnet_t* convnet,
 		float* r = softmax->data.f32;
 		assert(tops <= softmax->cols);
 
+		// 从第0层循环到tops层, tops = 5
 		for (j = 0; j < tops; j++)
 		{
 			float max_val = -1;
 			int max_idx = -1;
 			
 			for (k = 0; k < softmax->cols; k++)
+			{
+				// 记录每一行的最大值max_val和索引max_idx	
 				if (r[k] >= 0 && r[k] > max_val)
+				{
 					max_val = r[k], max_idx = k;
+				}
+			}
+
 			assert(max_idx >= 0);
 			r[max_idx] = -1;
-			ccv_classification_t classification = {
+
+			// 生成分类类别和相应的置信度
+			ccv_classification_t classification = 
+			{
 				.id = max_idx,
 				.confidence = max_val / ((!!symmetric + 1) * 5),
 			};
+
+			// 将分类结果压到ranks
 			ccv_array_push(ranks[i], &classification);
 		}
 

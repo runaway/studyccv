@@ -26,12 +26,17 @@ void ccv_cache_init(ccv_cache_t* cache, size_t up, int cache_types, ccv_cache_in
 static int bits_in_16bits[0x1u << 16];
 static int bits_in_16bits_init = 0;
 
-static int sparse_bitcount(unsigned int n) {
+// Ï¡ÊèÎ»¼ÆÊý
+static int sparse_bitcount(unsigned int n) 
+{
 	int count = 0;
-	while (n) {
+
+	while (n) 
+	{
 		count++;
 		n &= (n - 1);
 	}
+	
 	return count;
 }
 

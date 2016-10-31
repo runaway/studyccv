@@ -1,14 +1,5 @@
----- parallel_for Matches (13 in 5 files) ----
-Ccv_convnet.c (lib):	parallel_for(k, (count >> 2)) { \
-Ccv_convnet.c (lib):	parallel_for(k, (count >> 2)) { \
-Ccv_convnet.c (lib):	parallel_for(k, count) 
-Ccv_convnet.c (lib):	parallel_for(k, count) {
-Ccv_icf.c (lib):	parallel_for(i, feature_size) {
-Ccv_icf.c (lib):	parallel_for(i, feature_size) {
-Ccv_internal.h (lib):#define parallel_for(x, n) dispatch_apply(n, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(size_t x) {
-Ccv_internal.h (lib):#define parallel_for(x, n) { int x; for (x = 0; x < n; x++) {
-Ccv_scd.c (lib):	parallel_for(i, positives->rnum) {
-Ccv_scd.c (lib):	parallel_for(i, negatives->rnum) {
-Ccv_scd.c (lib):	parallel_for(i, features->rnum) {
-Ccv_scd.c (lib):	parallel_for(i, features->rnum) {
-Cwc_convnet_helper.c (lib\cuda):	parallel_for(i, size) {
+---- gsl_multifit_linear Matches (6 in 1 files) ----
+Ccv_dpm.c (lib):int gsl_multifit_linear (const gsl_matrix * X, const gsl_vector * y, gsl_vector * c, gsl_matrix * cov, double * chisq, gsl_multifit_linear_workspace * work)
+Ccv_dpm.c (lib):		gsl_multifit_linear_workspace* workspace = gsl_multifit_linear_alloc(num_per_model[i], root_classifier->count * 2 + 1);
+Ccv_dpm.c (lib):			gsl_multifit_linear(X, y[j], z, cov, &chisq, workspace);
+Ccv_dpm.c (lib):		gsl_multifit_linear_free(workspace);

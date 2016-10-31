@@ -112,7 +112,8 @@ enum {
 	CCV_DENSE_VECTOR  = 0x02000000,
 };
 
-typedef struct ccv_dense_vector_t {
+typedef struct ccv_dense_vector_t 
+{
 	int step;
 	int length;
 	int index;
@@ -123,12 +124,14 @@ typedef struct ccv_dense_vector_t {
 	struct ccv_dense_vector_t* next;
 } ccv_dense_vector_t;
 
-enum {
+enum 
+{
 	CCV_SPARSE_ROW_MAJOR = 0x00,
 	CCV_SPARSE_COL_MAJOR = 0x01,
 };
 
-typedef struct {
+typedef struct 
+{
 	int type;
 	uint64_t sig;
 	int refcount;
@@ -137,13 +140,16 @@ typedef struct {
 	int major;
 	int prime;
 	int load_factor;
-	union {
+
+	union 
+	{
 		unsigned char chr;
 		int i;
 		float fl;
 		int64_t l;
 		double db;
 	} tag;
+
 	ccv_dense_vector_t* vector;
 } ccv_sparse_matrix_t;
 
@@ -240,20 +246,24 @@ void ccv_cache_close(ccv_cache_t* cache);
 /* deprecated methods, often these implemented in another way and no longer suitable for newer computer architecture */
 /* 0 */
 
-typedef struct {
+typedef struct 
+{
 	int type;
 	uint64_t sig;
 	int refcount;
 	int rows;
 	int cols;
 	int nnz;
-	union {
+
+	union 
+	{
 		unsigned char chr;
 		int i;
 		float fl;
 		int64_t l;
 		double db;
 	} tag;
+	
 	int* index;
 	int* offset;
 	ccv_matrix_cell_t data;

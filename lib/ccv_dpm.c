@@ -1295,6 +1295,16 @@ _ccv_dpm_collect_from_background(ccv_array_t* av,
 }
 
 /*
+typedef struct   
+{  
+  size_t size1;//矩阵的行数  
+  size_t size2;//矩阵的列数  
+  size_t tda;//矩阵的实际列数  
+  double * data;//实际上就是block->data  
+  gsl_block * block;//矩阵相应的数据块  
+  int owner;//所有者标识符  
+} gsl_matrix; 
+
 int gsl_multifit_linear (const gsl_matrix * X, const gsl_vector * y, gsl_vector * c, gsl_matrix * cov, double * chisq, gsl_multifit_linear_workspace * work)
 
 //x是自变量 注意这儿是矩阵形式 每一行代表一个自变量的输入向量
@@ -1338,13 +1348,15 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 		ccv_matrix_free(image);
 	}
 
-	// 这将预测新的x, y和scale
+	// 这将预测新的x, y和scale漂移
 	// this will estimate new x, y, and scale
 	PRINT(CCV_CLI_INFO, "\n - linear regression for x, y, and scale drifting\n");
 
 	for (i = 0; i < model->count; i++)
 	{
 		ccv_dpm_root_classifier_t* root_classifier = model->root + i;
+
+		// 申请矩阵空间
 		gsl_matrix* X = gsl_matrix_alloc(num_per_model[i], root_classifier->count * 2 + 1);
 		gsl_vector* y[3];
 		y[0] = gsl_vector_alloc(num_per_model[i]);
@@ -1386,12 +1398,16 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 				++c;
 			}
 		}
-		
-		gsl_multifit_linear_workspace* workspace = gsl_multifit_linear_alloc(num_per_model[i], root_classifier->count * 2 + 1);
+
+		// 申请工作空间
+		gsl_multifit_linear_workspace* workspace 
+			= gsl_multifit_linear_alloc(num_per_model[i], 
+										root_classifier->count * 2 + 1);
 		double chisq;
 		
 		for (j = 0; j < 3; j++)
 		{
+			// 自变量 因变量 结果 协方差矩阵 残差 工作空间(长宽与x的长宽相同)
 			gsl_multifit_linear(X, y[j], z, cov, &chisq, workspace);
 			root_classifier->alpha[j] = 
 				params.discard_estimating_constant ? 0 : gsl_vector_get(z, 0);

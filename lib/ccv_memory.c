@@ -119,6 +119,7 @@ ccv_dense_matrix_t ccv_dense_matrix(int rows, int cols, int type, void* data, ui
 	return mat;
 }
 
+// 创建稀疏矩阵
 ccv_sparse_matrix_t* ccv_sparse_matrix_new(int rows, int cols, int type, int major, uint64_t sig)
 {
 	ccv_sparse_matrix_t* mat;
@@ -130,14 +131,19 @@ ccv_sparse_matrix_t* ccv_sparse_matrix_new(int rows, int cols, int type, int maj
 	mat->prime = 0;
 	mat->load_factor = 0;
 	mat->refcount = 1;
+
+	// 分配向量链表空间
+	// mat->prime == 53
 	mat->vector = (ccv_dense_vector_t*)ccmalloc(CCV_GET_SPARSE_PRIME(mat->prime) * sizeof(ccv_dense_vector_t));
 	int i;
+	
 	for (i = 0; i < CCV_GET_SPARSE_PRIME(mat->prime); i++)
 	{
 		mat->vector[i].index = -1;
 		mat->vector[i].length = 0;
 		mat->vector[i].next = 0;
 	}
+
 	return mat;
 }
 

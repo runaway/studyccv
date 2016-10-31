@@ -11,6 +11,7 @@ ccv_dense_matrix_t* ccv_get_dense_matrix(ccv_matrix_t* mat)
 	return 0;
 }
 
+// 获取稀疏矩阵
 ccv_sparse_matrix_t* ccv_get_sparse_matrix(ccv_matrix_t* mat)
 {
 	int type = *(int*)mat;
@@ -178,6 +179,7 @@ void ccv_shift(ccv_matrix_t* a, ccv_matrix_t** b, int type, int lr, int rr)
 #undef for_block
 }
 
+// 获取稀疏矩阵向量
 ccv_dense_vector_t* ccv_get_sparse_matrix_vector(ccv_sparse_matrix_t* mat, int index)
 {
 	if (mat->vector[(index * 33) % CCV_GET_SPARSE_PRIME(mat->prime)].index != -1)
@@ -187,33 +189,55 @@ ccv_dense_vector_t* ccv_get_sparse_matrix_vector(ccv_sparse_matrix_t* mat, int i
 			vector = vector->next;
 		return vector;
 	}
+	
 	return 0;
 }
 
+// 获取稀疏矩阵元素
 ccv_matrix_cell_t ccv_get_sparse_matrix_cell(ccv_sparse_matrix_t* mat, int row, int col)
 {
-	ccv_dense_vector_t* vector = ccv_get_sparse_matrix_vector(mat, (mat->major == CCV_SPARSE_COL_MAJOR) ? col : row);
+	// 获取稀疏矩阵向量vector
+	ccv_dense_vector_t* vector 
+		= ccv_get_sparse_matrix_vector(mat, (mat->major == CCV_SPARSE_COL_MAJOR) ? col : row);
 	ccv_matrix_cell_t cell;
 	cell.u8 = 0;
+
+	// 如果获取到的稀疏矩阵向量不为空
 	if (vector != 0 && vector->length > 0)
 	{
 		int cell_width = CCV_GET_DATA_TYPE_SIZE(mat->type) * CCV_GET_CHANNEL(mat->type);
+
+		// 获取稀疏矩阵的跨度
 		int vidx = (mat->major == CCV_SPARSE_COL_MAJOR) ? row : col;
+
+		// 如果是稠密矩阵
 		if (mat->type & CCV_DENSE_VECTOR)
 		{
 			cell.u8 = vector->data.u8 + cell_width * vidx;
-		} else {
+		} 
+		else // 如果是稀疏矩阵
+		{
 			int h = (vidx * 33) % vector->length, i = 0;
-			while (vector->indice[(h + i * i) % vector->length] != vidx && vector->indice[(h + i * i) % vector->length] != -1)
+
+			while (vector->indice[(h + i * i) % vector->length] != vidx 
+				&& vector->indice[(h + i * i) % vector->length] != -1)
+			{
 				i++;
+			}
+
 			i = (h + i * i) % vector->length;
+
 			if (vector->indice[i] != -1)
+			{
 				cell.u8 = vector->data.u8 + i * cell_width;
+			}
 		}
 	}
+
 	return cell;
 }
 
+// 稠密矩阵扩展
 static void _ccv_dense_vector_expand(ccv_sparse_matrix_t* mat, ccv_dense_vector_t* vector)
 {
 	if (vector->prime == -1)
@@ -245,6 +269,7 @@ static void _ccv_dense_vector_expand(ccv_sparse_matrix_t* mat, ccv_dense_vector_
 	vector->indice = new_indice;
 }
 
+// 稀疏矩阵扩展
 static void _ccv_sparse_matrix_expand(ccv_sparse_matrix_t* mat)
 {
 	assert(mat->prime >= 0 && mat->prime < sizeof(_ccv_get_sparse_prime) / sizeof(int));
@@ -296,6 +321,7 @@ static void _ccv_sparse_matrix_expand(ccv_sparse_matrix_t* mat)
 	mat->vector = new_vector;
 }
 
+// 设置稀疏矩阵元素
 void ccv_set_sparse_matrix_cell(ccv_sparse_matrix_t* mat, int row, int col, void* data)
 {
 	int i;
@@ -303,15 +329,19 @@ void ccv_set_sparse_matrix_cell(ccv_sparse_matrix_t* mat, int row, int col, void
 	int vidx = (mat->major == CCV_SPARSE_COL_MAJOR) ? row : col;
 	int length = CCV_GET_SPARSE_PRIME(mat->prime);
 	ccv_dense_vector_t* vector = ccv_get_sparse_matrix_vector(mat, index);
+	
 	if (vector == 0)
 	{
 		mat->load_factor++;
+
 		if (mat->load_factor * 4 > CCV_GET_SPARSE_PRIME(mat->prime) * 3)
 		{
 			_ccv_sparse_matrix_expand(mat);
 			length = CCV_GET_SPARSE_PRIME(mat->prime);
 		}
+		
 		vector = &mat->vector[(index * 33) % length];
+
 		if (vector->index != -1)
 		{
 			vector = (ccv_dense_vector_t*)ccmalloc(sizeof(ccv_dense_vector_t));
@@ -321,7 +351,9 @@ void ccv_set_sparse_matrix_cell(ccv_sparse_matrix_t* mat, int row, int col, void
 			mat->vector[(index * 33) % length].next = vector;
 		}
 	}
+	
 	int cell_width = CCV_GET_DATA_TYPE_SIZE(mat->type) * CCV_GET_CHANNEL(mat->type);
+
 	if (mat->type & CCV_DENSE_VECTOR)
 	{
 		if (vector->index == -1)
@@ -332,9 +364,12 @@ void ccv_set_sparse_matrix_cell(ccv_sparse_matrix_t* mat, int row, int col, void
 			vector->step = (vector->length * cell_width + 3) & -4;
 			vector->data.u8 = (unsigned char*)calloc(vector->step, 1);
 		}
+		
 		if (data != 0)
 			memcpy(vector->data.u8 + vidx * cell_width, data, cell_width);
-	} else {
+	} 
+	else 
+	{
 		if (vector->index == -1)
 		{
 			vector->prime = 0;
@@ -347,19 +382,26 @@ void ccv_set_sparse_matrix_cell(ccv_sparse_matrix_t* mat, int row, int col, void
 			for (i = 0; i < vector->length; i++)
 				vector->indice[i] = -1;
 		}
+		
 		vector->load_factor++;
+
 		if (vector->load_factor * 2 > vector->length)
 		{
 			_ccv_dense_vector_expand(mat, vector);
 		}
+		
 		i = 0;
 		int h = (vidx * 33) % vector->length;
+
 		while (vector->indice[(h + i * i) % vector->length] != vidx && vector->indice[(h + i * i) % vector->length] != -1)
 			i++;
+
 		i = (h + i * i) % vector->length;
 		vector->indice[i] = vidx;
+
 		if (data != 0)
 			memcpy(vector->data.u8 + i * cell_width, data, cell_width);
+
 	}
 }
 
@@ -390,11 +432,13 @@ static CCV_IMPLEMENT_QSORT_EX(_ccv_indice_int_sort, int, _ccv_indice_less_than, 
 static CCV_IMPLEMENT_QSORT_EX(_ccv_indice_float_sort, int, _ccv_indice_less_than, _ccv_swap_indice_and_float_data, float*);
 static CCV_IMPLEMENT_QSORT_EX(_ccv_indice_double_sort, int, _ccv_indice_less_than, _ccv_swap_indice_and_double_data, double*);
 
+// 压缩稀疏矩阵
 void ccv_compress_sparse_matrix(ccv_sparse_matrix_t* mat, ccv_compressed_sparse_matrix_t** csm)
 {
 	int i, j;
 	int nnz = 0;
 	int length = CCV_GET_SPARSE_PRIME(mat->prime);
+	
 	for (i = 0; i < length; i++)
 	{
 		ccv_dense_vector_t* vector = &mat->vector[i];
@@ -485,16 +529,30 @@ void ccv_compress_sparse_matrix(ccv_sparse_matrix_t* mat, ccv_compressed_sparse_
 	}
 }
 
+// 解压稀疏矩阵
 void ccv_decompress_sparse_matrix(ccv_compressed_sparse_matrix_t* csm, ccv_sparse_matrix_t** smt)
 {
-	ccv_sparse_matrix_t* mat = *smt = ccv_sparse_matrix_new(csm->rows, csm->cols, csm->type & ~CCV_MATRIX_CSR & ~CCV_MATRIX_CSC, (csm->type & CCV_MATRIX_CSR) ? CCV_SPARSE_ROW_MAJOR : CCV_SPARSE_COL_MAJOR, 0);
+	ccv_sparse_matrix_t* mat = *smt 
+		= ccv_sparse_matrix_new(csm->rows, 
+								csm->cols, 
+								csm->type & ~CCV_MATRIX_CSR & ~CCV_MATRIX_CSC, 
+								(csm->type & CCV_MATRIX_CSR) ? CCV_SPARSE_ROW_MAJOR : CCV_SPARSE_COL_MAJOR, 0);
 	int i, j;
+	
 	for (i = 0; i < ((mat->major == CCV_SPARSE_COL_MAJOR) ? mat->cols : mat->rows); i++)
+	{
 		for (j = csm->offset[i]; j < csm->offset[i + 1]; j++)
+		{
 			if (mat->major == CCV_SPARSE_COL_MAJOR)
+			{
 				ccv_set_sparse_matrix_cell(mat, csm->index[j], i, csm->data.u8 + CCV_GET_DATA_TYPE_SIZE(csm->type) * j);
+			}
 			else
+			{
 				ccv_set_sparse_matrix_cell(mat, i, csm->index[j], csm->data.u8 + CCV_GET_DATA_TYPE_SIZE(csm->type) * j);
+			}
+		}
+	}
 }
 
 int ccv_matrix_eq(ccv_matrix_t* a, ccv_matrix_t* b)
@@ -534,9 +592,17 @@ int ccv_matrix_eq(ccv_matrix_t* a, ccv_matrix_t* b)
 	return 0;
 }
 
-void ccv_slice(ccv_matrix_t* a, ccv_matrix_t** b, int btype, int y, int x, int rows, int cols)
+
+void ccv_slice(ccv_matrix_t* a, 
+			   ccv_matrix_t** b, 
+			   int btype, 
+			   int y, 
+			   int x, 
+			   int rows, 
+			   int cols)
 {
 	int type = *(int*)a;
+	
 	if (type & CCV_MATRIX_DENSE)
 	{
 		ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
@@ -546,16 +612,36 @@ void ccv_slice(ccv_matrix_t* a, ccv_matrix_t** b, int btype, int y, int x, int r
 		ccv_object_return_if_cached(, db);
 		int i, j, ch = CCV_GET_CHANNEL(da->type);
 		int dx = 0, dy = 0;
+		
 		if (!(y >= 0 && y + rows <= da->rows && x >= 0 && x + cols <= da->cols))
 		{
 			ccv_zero(db);
-			if (y < 0) { rows += y; dy = -y; y = 0; }
-			if (y + rows > da->rows) rows = da->rows - y;
-			if (x < 0) { cols += x; dx = -x; x = 0; }
-			if (x + cols > da->cols) cols = da->cols - x;
+			
+			if (y < 0) 
+			{ 
+				rows += y; dy = -y; y = 0; 
+			}
+			
+			if (y + rows > da->rows) 
+			{
+				rows = da->rows - y;
+			}
+
+			if (x < 0) 
+			{ 
+				cols += x; dx = -x; x = 0; 
+			}
+
+			if (x + cols > da->cols) 
+			{
+				cols = da->cols - x;
+			}
 		}
+		
 		unsigned char* a_ptr = da->data.u8 + x * ch * CCV_GET_DATA_TYPE_SIZE(da->type) + y * da->step;
 		unsigned char* b_ptr = db->data.u8 + dx * ch * CCV_GET_DATA_TYPE_SIZE(db->type) + dy * db->step;
+
+		// 根据数据类型将a转换到*b
 #define for_block(_for_set, _for_get) \
 		for (i = 0; i < rows; i++) \
 		{ \
@@ -566,9 +652,14 @@ void ccv_slice(ccv_matrix_t* a, ccv_matrix_t** b, int btype, int y, int x, int r
 			a_ptr += da->step; \
 			b_ptr += db->step; \
 		}
+		
 		ccv_matrix_setter(db->type, ccv_matrix_getter, da->type, for_block);
 #undef for_block
-	} else if (type & CCV_MATRIX_SPARSE) {
+
+	} 
+	else if (type & CCV_MATRIX_SPARSE) 
+	{
+		
 	}
 }
 

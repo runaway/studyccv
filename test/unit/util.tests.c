@@ -87,6 +87,7 @@ TEST_CASE("group array with is_equal function")
 	ccv_array_free(idx);
 }
 
+// Ï¡Êè¾ØÕó»ù±¾²åÈë
 TEST_CASE("sparse matrix basic insertion")
 {
 	ccv_sparse_matrix_t* mat = ccv_sparse_matrix_new(1000, 1000, CCV_32S | CCV_C1, CCV_SPARSE_ROW_MAJOR, 0);
@@ -114,6 +115,7 @@ TEST_CASE("sparse matrix basic insertion")
 	ccv_matrix_free(mat);
 }
 
+// Ñ¹ËõÏ¡Êè¾ØÕó
 TEST_CASE("compress sparse matrix")
 {
 	ccv_sparse_matrix_t* mat = ccv_sparse_matrix_new(3, 3, CCV_32F | CCV_C1, CCV_SPARSE_ROW_MAJOR, 0);
@@ -130,6 +132,8 @@ TEST_CASE("compress sparse matrix")
 	ccv_set_sparse_matrix_cell(mat, 2, 1, &cell);
 	cell = 6.0;
 	ccv_set_sparse_matrix_cell(mat, 2, 2, &cell);
+
+	// ½«Ï¡Êè¾ØÕómatÑ¹Ëõµ½csm
 	ccv_compressed_sparse_matrix_t* csm = 0;
 	ccv_compress_sparse_matrix(mat, &csm);
 	float dm[6] = {1, 2, 3, 4, 5, 6};
@@ -141,6 +145,8 @@ TEST_CASE("compress sparse matrix")
 	int df[4] = {0, 2, 3, 6};
 	REQUIRE_ARRAY_EQ(int, df, csm->offset, 4, "offset of leading element in each row");
 	ccv_sparse_matrix_t* smt = 0;
+
+	// ½«ÒÑÑ¹ËõµÄÏ¡Êè¾ØÕócsm½âÑ¹µ½smt
 	ccv_decompress_sparse_matrix(csm, &smt);
 	float m[3][3] = {{1, 0, 2}, {0, 0, 3}, {4, 5, 6}};
 	int i, j;

@@ -258,6 +258,7 @@ void ccv_subtract(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** c, int type)
 	unsigned char* aptr = da->data.u8;
 	unsigned char* bptr = db->data.u8;
 	unsigned char* cptr = dc->data.u8;
+	
 #define for_block(_for_get, _for_set) \
 	for (i = 0; i < da->rows; i++) \
 	{ \
@@ -267,6 +268,7 @@ void ccv_subtract(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** c, int type)
 		bptr += db->step; \
 		cptr += dc->step; \
 	}
+	
 	ccv_matrix_getter(da->type, ccv_matrix_setter, dc->type, for_block);
 #undef for_block
 }

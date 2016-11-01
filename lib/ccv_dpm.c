@@ -989,6 +989,8 @@ _ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v,
 		ix = ccv_clamp(x * 2 + offx, pww, detail->cols - part->w->cols + pww);
 		int ry = ccv_get_dense_matrix_cell_value_by(CCV_32S | CCV_C1, dy[i], iy, ix, 0);
 		int rx = ccv_get_dense_matrix_cell_value_by(CCV_32S | CCV_C1, dx[i], iy, ix, 0);
+
+		// 计算形变特征向量
 		part->dx = rx; // I am not sure if I need to flip the sign or not (confirmed, it should be this way)
 		part->dy = ry;
 		part->dxx = rx * rx;
@@ -1378,23 +1380,30 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 
 				for (k = 0; k < v->count; k++)
 				{
+					// 设置部件k的坐标到X
 					gsl_matrix_set(X, c, k * 2 + 1, v->part[k].dx);
 					gsl_matrix_set(X, c, k * 2 + 2, v->part[k].dy);
 				}
 
 				ccv_rect_t bbox = bboxes[j];
 
+				// y[0],y[1]包围盒中心点归一化后的坐标，y[2]归一化后的包围和面积
 				// 对vector赋值, vector名称, 分量序号, 值
 				gsl_vector_set(y[0], 
 							   c, 
-							   (bbox.x + bbox.width * 0.5) / (v->scale_x * CCV_DPM_WINDOW_SIZE) - v->x);
+							   (bbox.x + bbox.width * 0.5) / (v->scale_x * CCV_DPM_WINDOW_SIZE) 
+							    - v->x);
 				gsl_vector_set(y[1], 
 							   c, 
-							   (bbox.y + bbox.height * 0.5) / (v->scale_y * CCV_DPM_WINDOW_SIZE) - v->y);
+							   (bbox.y + bbox.height * 0.5) / (v->scale_y * CCV_DPM_WINDOW_SIZE)
+							    - v->y);
 				gsl_vector_set(y[2], 
 							   c, 
 							   sqrt((bbox.width * bbox.height) 
-							    / (root_classifier->root.w->rows * v->scale_x * CCV_DPM_WINDOW_SIZE * root_classifier->root.w->cols * v->scale_y * CCV_DPM_WINDOW_SIZE)) - 1.0);
+							    / (root_classifier->root.w->rows * v->scale_x 
+							    * CCV_DPM_WINDOW_SIZE 
+							    * root_classifier->root.w->cols * v->scale_y 
+							    * CCV_DPM_WINDOW_SIZE)) - 1.0);
 				++c;
 			}
 		}
@@ -1409,6 +1418,9 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 		{
 			// 自变量 因变量 结果 协方差矩阵 残差 工作空间(长宽与x的长宽相同)
 			gsl_multifit_linear(X, y[j], z, cov, &chisq, workspace);
+
+			// 获取z(j0)到alpha(j)
+			discard_estimating_constant
 			root_classifier->alpha[j] = 
 				params.discard_estimating_constant ? 0 : gsl_vector_get(z, 0);
 
@@ -1436,7 +1448,10 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 	ccfree(posv);
 }
 
-static void _ccv_dpm_regularize_mixture_model(ccv_dpm_mixture_model_t* model, int i, double regz)
+static void 
+_ccv_dpm_regularize_mixture_model(ccv_dpm_mixture_model_t* model, 
+								  int i, 
+								  double regz)
 {
 	int k;
 	ccv_dpm_root_classifier_t* root_classifier = model->root + i;
@@ -1513,7 +1528,10 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 			wptr += root_classifier->root.w->cols * ch;
 		}
 
-		// 在训练的时候对部分部件进行打标签，用他们求beta,然后用beta再来找潜在部件，因此使用coordinatedescent迭代求解，再一次遇到这个求解方法。有了部件和打分，就是寻找根部件和其他部件的结合匹配最优问题，可以使用动态规划，但很慢
+		/* 在训练的时候对部分部件进行打标签，用他们求beta,然后用beta再来找潜在
+		部件，因此使用coordinatedescent迭代求解，再一次遇到这个求解方法。有了部
+		件和打分，就是寻找根部件和其他部件的结合匹配最优问题，可以使用动态规划，
+		但很慢*/
 		root_classifier->beta += alpha * y * Cn * 2.0;
 	} 
 	else 
@@ -1545,10 +1563,11 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 
 		if (symmetric)
 		{
+			// 对于特征对称的所有样本做2x汇聚
 			// 2x converge on everything for symmetric feature
 			if (part_classifier->counterpart == -1)
 			{
-				part_classifier->dx += /* flip the sign on x-axis (symmetric) */ alpha * y * Cn * part_vector->dx;
+				part_classifier->dx += alpha * y * Cn * part_vector->dx; /* flip the sign on x-axis (symmetric) */
 				part_classifier->dxx -= alpha * y * Cn * part_vector->dxx;
 				part_classifier->dxx = ccv_max(part_classifier->dxx, 0.01);
 				part_classifier->dy -= alpha * y * Cn * part_vector->dy;
@@ -1558,11 +1577,15 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 				for (i = 0; i < part_vector->w->rows; i++)
 				{
 					for (j = 0; j < part_vector->w->cols; j++)
+					{
 						for (c = 0; c < ch; c++)
 						{
 							wptr[j * ch + c] += alpha * y * Cn * vptr[j * ch + c];
-							wptr[j * ch + c] += alpha * y * Cn * vptr[(part_vector->w->cols - 1 - j) * ch + _ccv_dpm_sym_lut[c]];
+							wptr[j * ch + c] += 
+								alpha * y * Cn * vptr[(part_vector->w->cols - 1 - j) * ch 
+							  + _ccv_dpm_sym_lut[c]];
 						}
+					}
 						
 					vptr += part_vector->w->cols * ch;
 					wptr += part_classifier->w->cols * ch;
@@ -1570,9 +1593,12 @@ static void _ccv_dpm_stochastic_gradient_descent(ccv_dpm_mixture_model_t* model,
 			} 
 			else 
 			{
-				ccv_dpm_part_classifier_t* other_part_classifier = root_classifier->part + part_classifier->counterpart;
+				ccv_dpm_part_classifier_t* other_part_classifier = 
+					root_classifier->part + part_classifier->counterpart;
+				
 				assert(part_vector->w->rows == other_part_classifier->w->rows && part_vector->w->cols == other_part_classifier->w->cols);
-				other_part_classifier->dx += /* flip the sign on x-axis (symmetric) */ alpha * y * Cn * part_vector->dx;
+
+				other_part_classifier->dx += alpha * y * Cn * part_vector->dx; /* flip the sign on x-axis (symmetric) */
 				other_part_classifier->dxx -= alpha * y * Cn * part_vector->dxx;
 				other_part_classifier->dxx = ccv_max(other_part_classifier->dxx, 0.01);
 				other_part_classifier->dy -= alpha * y * Cn * part_vector->dy;
@@ -1801,6 +1827,34 @@ static void _ccv_dpm_check_params(ccv_dpm_new_param_t params)
 #define MINI_BATCH (10)
 #define REGQ (100)
 
+/*
+让Zp假设一个训练集里所有正例的隐形变量，LSVM的优化过程如下所示：
+
+1) 重新标记训练集的图像：在确定β的情况下，对每个训练集图像找的得分最高的位置：
+argmax[z∈Z(xi)] β* Φ(xi, z)          (3-11) 
+
+2) 重新优化模型参数：
+LD(β) = 1 / 2 * ||β|| ^ 2 + C∑max(0, 1 - yi * fβ(xi))  (3-12) 
+
+两个步骤循环交替进行，模型的参数将一步步地得到优化，最终收敛到最优参数上。
+     
+对于上述步骤的第二步，我们采用随机梯度下降的方法来进行优化，
+  
+让zi(β) = β,然后fβ(xi) = β* φ(xi, zi(β))，我们计算LSVM目标函数的梯度如下所示：
+              
+▽LD(β) = β+ C∑[i=1~n] h(β, xi, yi)      (3-13) 
+                 
+h(β,xi,yi) = -yi * (xi,zi(β))     (3-14) 
+ 
+在h(β,xi,yi)中,当yi * fβ(xi) >= 1时取上值，否则取下值，∑[i=1~n] h(β, xi, yi)          
+使用n * h(β,xi,yi)来近似，综上所述循环算法如下所示，
+ 
+1) 让αi表示梯度下降的步长。 
+2) 让i为一个随机数。
+3) 让zi(β) = argmax[z∈Z(xi)] β* Φ(xi, z)  。 
+4) 如果yi * fβ( xi ) >= 1，β = β - αi * β。
+5) 否则β = β - αi * (β – Cn * yi * φ(xi, zi))
+*/
 static ccv_dpm_mixture_model_t* 
 _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng, 
 									 ccv_dpm_mixture_model_t* model, 
@@ -1824,13 +1878,18 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 	int* label = (int*)ccmalloc(sizeof(int) * (posnum + negnum));
 	int* order = (int*)ccmalloc(sizeof(int) * (posnum + negnum));
 	double previous_positive_loss = 0, previous_negative_loss = 0, positive_loss = 0, negative_loss = 0, loss = 0;
+
+	// C in SVM. Cn
 	double regz_rate = C;
 
+	// 根分类器需要的重标记过程数root_relabels = 20
 	for (c = 0; c < relabels; c++)
 	{
 		int* pos_prog = (int*)alloca(sizeof(int) * model->count);
 		memset(pos_prog, 0, sizeof(int) * model->count);
 
+		// 1) 重新标记训练集的图像：在确定β的情况下，对每个训练集图像找的得分最高的位置：
+		// argmax[z∈Z(xi)] β* Φ(xi, z) 
 		for (i = 0; i < posnum; i++)
 		{
 			int best = -1;
@@ -1838,20 +1897,25 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 			
 			for (k = 0; k < model->count; k++)
 			{
-				ccv_dpm_feature_vector_t* v = (ccv_dpm_feature_vector_t*)ccv_array_get(posex[k], i);
+				// 获取第i个正样本到v	
+				ccv_dpm_feature_vector_t* v 
+					= (ccv_dpm_feature_vector_t*)ccv_array_get(posex[k], i);
+
 				if (v->root.w == 0)
 					continue;
 
 				// 最小批方法的损失(在模型上计算)
 				double score = _ccv_dpm_vector_score(model, v); // the loss for mini-batch method (computed on model)
 
+				// 获取正样本的最好得分best_score和最好组件号best
 				if (score > best_score)
 				{
 					best = k;
 					best_score = score;
 				}
 			}
-			
+
+			// 将第i个label设置为最好组件号best
 			label[i] = best;
 			
 			if (best >= 0)
@@ -1870,6 +1934,8 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 		for (i = 0; i < negnum; i++)
 		{
 			int best = gsl_rng_uniform_int(rng, model->count);
+
+			// 设置负样本的label为最好组件号best
 			label[i + posnum] = best;
 			++neg_prog[best];
 		}
@@ -1879,15 +1945,23 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 		for (i = 1; i < model->count; i++)
 			PRINT(CCV_CLI_INFO, ", %d", neg_prog[i]);
 		PRINT(CCV_CLI_INFO, "\n");
+		
 		ccv_dpm_mixture_model_t* _model;
+
+		// 2.1) 让αi表示梯度下降的步长。 
+		/**< The step size for stochastic gradient descent. */
 		double alpha = previous_alpha;
 		previous_positive_loss = previous_negative_loss = 0;
 
+		// 2) 重新优化模型参数:LD(β) = 1 / 2 * ||β|| ^ 2 + C∑max(0, 1 - yi * fβ(xi))
 		for (t = 0; t < iterations; t++)
 		{
 			for (i = 0; i < posnum + negnum; i++)
+			{
 				order[i] = i;
-			
+			}
+
+			// 2.2) 让i为一个随机数。
 			gsl_ran_shuffle(rng, order, posnum + negnum, sizeof(int));
 
 			for (j = 0; j < model->count; j++)
@@ -1904,17 +1978,30 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 					if (label[k]  == j)
 					{
 						assert(label[k] < model->count);
-						
+
+						// 2.3) 让zi(β) = argmax[z∈Z(xi)] β* Φ(xi, z)
 						if (k < posnum)
 						{
-							ccv_dpm_feature_vector_t* v = (ccv_dpm_feature_vector_t*)ccv_array_get(posex[label[k]], k);
+							ccv_dpm_feature_vector_t* v = 
+								(ccv_dpm_feature_vector_t*)ccv_array_get(posex[label[k]], k);
+
 							assert(v->root.w);
+
 							double score = _ccv_dpm_vector_score(model, v); // the loss for mini-batch method (computed on model)
+
 							assert(!isnan(score));
 							assert(v->id == j);
 
+							// 2.4) 如果yi * fβ( xi ) >= 1，β = β - αi * β。
 							if (score <= 1)
-								_ccv_dpm_stochastic_gradient_descent(_model, v, 1, alpha * pos_weight, regz_rate, symmetric);
+							{
+								_ccv_dpm_stochastic_gradient_descent(_model, 
+																	 v, 
+																	 1, 
+																	 alpha * pos_weight, 
+																	 regz_rate, 
+																	 symmetric);
+							}
 						} 
 						else 
 						{
@@ -1922,14 +2009,28 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 							double score = _ccv_dpm_vector_score(model, v);
 							assert(!isnan(score));
 							assert(v->id == j);
+
+							// 2.5) 否则β = β - αi * (β – Cn * yi * φ(xi, zi))
 							if (score >= -1)
-								_ccv_dpm_stochastic_gradient_descent(_model, v, -1, alpha * neg_weight, regz_rate, symmetric);
+							{
+								_ccv_dpm_stochastic_gradient_descent(_model, 
+																	 v, 
+																	 - 1, 
+																	 alpha * neg_weight, 
+																	 regz_rate, 
+																	 symmetric);
+							}
 						}
 						
 						++l;
 						
 						if (l % REGQ == REGQ - 1)
-							_ccv_dpm_regularize_mixture_model(_model, j, 1.0 - pow(1.0 - alpha / (double)((pos_prog[j] + neg_prog[j]) * (!!symmetric + 1)), REGQ));
+						{
+							_ccv_dpm_regularize_mixture_model(_model, 
+															  j, 
+															  1.0 - pow(1.0 - alpha / (double)((pos_prog[j] + neg_prog[j]) * (!!symmetric + 1)), 
+															  REGQ));
+						}
 
 						if (l % MINI_BATCH == MINI_BATCH - 1)
 						{
@@ -1942,7 +2043,11 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 					}
 				}
 
-				_ccv_dpm_regularize_mixture_model(_model, j, 1.0 - pow(1.0 - alpha / (double)((pos_prog[j] + neg_prog[j]) * (!!symmetric + 1)), (((pos_prog[j] + neg_prog[j]) % REGQ) + 1) % (REGQ + 1)));
+				_ccv_dpm_regularize_mixture_model(_model, 
+												  j, 
+												  1.0 - pow(1.0 - alpha / (double)((pos_prog[j] + neg_prog[j]) * (!!symmetric + 1)), 
+												  (((pos_prog[j] + neg_prog[j]) % REGQ) + 1) % (REGQ + 1)));
+
 				_ccv_dpm_mixture_model_cleanup(model);
 				ccfree(model);
 				model = _model;
@@ -2011,13 +2116,17 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 			
 			previous_positive_loss = positive_loss;
 			previous_negative_loss = negative_loss;
+
+			// 每次迭代它将减少
 			alpha *= alpha_ratio; // it will decrease with each iteration
 		}
 
 		PRINT(CCV_CLI_INFO, "\n");
 	}
+	
 	ccfree(order);
 	ccfree(label);
+	
 	return model;
 }
 
@@ -2182,6 +2291,7 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		aspect /= mnum[i];
 		cols[i] = ccv_max((int)(sqrtf(area / aspect) * aspect / CCV_DPM_WINDOW_SIZE + 0.5), 1);
 		rows[i] = ccv_max((int)(sqrtf(area / aspect) / CCV_DPM_WINDOW_SIZE + 0.5), 1);
+
 		if (i < params.components - 1)
 			PRINT(CCV_CLI_INFO, "%dx%d, ", cols[i], rows[i]);
 		else
@@ -2208,8 +2318,12 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 
 		// Data 1: Positive Examples P = {(I1, B1), ..., (In, Bn)} 
 		for (i = 0; i < params.components; i++)
+		{
 			posex[i] = _ccv_dpm_summon_examples_by_rectangle(posfiles, bboxes, posnum, i, rows[i], cols[i], params.grayscale);
+		}
+		
 		PRINT(CCV_CLI_INFO, "\n");
+
 		ccv_array_t** negex = (ccv_array_t**)alloca(sizeof(ccv_array_t*) * params.components);
 
 		// Data 2: Negitive Images N = {J1, ... Jm} 
@@ -2245,7 +2359,10 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 				_ccv_dpm_check_root_classifier_symmetry(root_classifier->root.w);
 			}
 
-		// 现在不知道部件，也不知道滤波器，没有滤波器就没有部件，没有部件也求不出滤波器的参数，这就是典型的EM算法要解决的事情，但是作者没有使用EM算法，而是使用隐SVM（Latent SVM）的方法，隐变量其实就是类似统计中的因子分析，在这里就是找到潜在部件。	
+		// 现在不知道部件，也不知道滤波器，没有滤波器就没有部件，没有部件也求不
+		// 出滤波器的参数，这就是典型的EM算法要解决的事情，但是作者没有使用EM算
+		// 法，而是使用隐SVM（Latent SVM）的方法，隐变量其实就是类似统计中的因
+		// 子分析，在这里就是找到潜在部件。	
 		if (params.components > 1)
 		{
 			// lsvm的坐标下降
@@ -2253,7 +2370,18 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 			PRINT(CCV_CLI_INFO, "optimizing root mixture model with coordinate-descent approach\n");
 
 			// 优化根混合模型 
-			model = _ccv_dpm_optimize_root_mixture_model(rng, model, posex, negex, params.root_relabels, params.balance, params.C, params.alpha, params.alpha_ratio, params.iterations, params.symmetric);
+			model = 
+				_ccv_dpm_optimize_root_mixture_model(rng, 
+													 model, 
+													 posex, 
+													 negex, 
+													 params.root_relabels, 
+													 params.balance, 
+													 params.C, 
+													 params.alpha, 
+													 params.alpha_ratio, 
+													 params.iterations, 
+													 params.symmetric);
 		} 
 		else 
 		{

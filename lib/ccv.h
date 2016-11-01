@@ -1519,7 +1519,8 @@ relabels: How many relabel procedures are needed.
 root_relabels: How many relabel procedures for root classifier are needed.
 symmetric: Whether to exploit symmetric property of the object.
 */
-typedef struct {
+typedef struct 
+{
 	int components; /**< The number of root filters in the mixture model. */
 	int parts; /**< The number of part filters for each root filter. */
 	int grayscale; /**< Whether to exploit color in a given image. */

@@ -1,5 +1,45 @@
----- gsl_multifit_linear Matches (6 in 1 files) ----
-Ccv_dpm.c (lib):int gsl_multifit_linear (const gsl_matrix * X, const gsl_vector * y, gsl_vector * c, gsl_matrix * cov, double * chisq, gsl_multifit_linear_workspace * work)
-Ccv_dpm.c (lib):		gsl_multifit_linear_workspace* workspace = gsl_multifit_linear_alloc(num_per_model[i], root_classifier->count * 2 + 1);
-Ccv_dpm.c (lib):			gsl_multifit_linear(X, y[j], z, cov, &chisq, workspace);
-Ccv_dpm.c (lib):		gsl_multifit_linear_free(workspace);
+---- >=1 Matches (44 in 1 files) ----
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( i>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( i>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( i>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):  if( sqlite3GlobalConfig.pScratch && sqlite3GlobalConfig.szScratch>=100
+Sqlite3.c (lib\3rdparty\sqlite3):    assert( scratchAllocOut>=1 && scratchAllocOut<=2 );
+Sqlite3.c (lib\3rdparty\sqlite3):          while( realvalue>=1e100*scale && exp<=350 ){ scale *= 1e100;exp+=100;}
+Sqlite3.c (lib\3rdparty\sqlite3):          while( realvalue>=1e64*scale && exp<=350 ){ scale *= 1e64; exp+=64; }
+Sqlite3.c (lib\3rdparty\sqlite3):          while( realvalue>=1e8*scale && exp<=350 ){ scale *= 1e8; exp+=8; }
+Sqlite3.c (lib\3rdparty\sqlite3):          while( realvalue>=10.0*scale && exp<=350 ){ scale *= 10.0; exp++; }
+Sqlite3.c (lib\3rdparty\sqlite3):          if( realvalue>=10.0 ){ realvalue *= 0.1; exp++; }
+Sqlite3.c (lib\3rdparty\sqlite3):          if( exp>=100 ){
+Sqlite3.c (lib\3rdparty\sqlite3):  else if( n>=1 ) n -= 1;
+Sqlite3.c (lib\3rdparty\sqlite3):  if( pH->count>=10 && pH->count > 2*pH->htsize ){
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( n>=1 && n<SQLITE_SHM_NLOCK );
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( n>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( n>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( level>=1 && level<=3 );
+Sqlite3.c (lib\3rdparty\sqlite3):       && (iHash>=1 || iFrame<=HASHTABLE_NPAGE_ONE)
+Sqlite3.c (lib\3rdparty\sqlite3):    if( cnt>=10 ) nDelay = (cnt-9)*238;  /* Max delay 21ms. Total delay 996ms */
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( idx>=1 && idx<=15 );
+Sqlite3.c (lib\3rdparty\sqlite3):  }else if( p->nOp>=1 ){
+Sqlite3.c (lib\3rdparty\sqlite3):**    N>=12 and even       (N-12)/2        BLOB
+Sqlite3.c (lib\3rdparty\sqlite3):**    N>=13 and odd        (N-13)/2        text
+Sqlite3.c (lib\3rdparty\sqlite3):  if( serial_type>=12 ){
+Sqlite3.c (lib\3rdparty\sqlite3):  if( serial_type>=12 ){
+Sqlite3.c (lib\3rdparty\sqlite3):      assert( pOp->p5>=1 && pOp->p5<=4 );
+Sqlite3.c (lib\3rdparty\sqlite3):          && ((u.ap.t>=12 && (u.ap.t&1)==0) || (pOp->p5 & OPFLAG_TYPEOFARG)!=0))
+Sqlite3.c (lib\3rdparty\sqlite3):        assert( nFarg>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):**           aiRowEst[N]>=1
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( nExtra>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( db->vtabOnConflict>=1 && db->vtabOnConflict<=5 );
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( nEq>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):   && pProbe->aiRowEst[saved_nEq+1]>=18  /* TUNING: Minimum for skip-scan */
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( pWInfo->pTabList->nSrc>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):  ** Methods below this point are only available if iVersion>=1.
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( nVal>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):    if( pModule->iVersion>=1 ){
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( p->nIndex>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):  assert( iHeight>=1 && iHeight<128 );
+Sqlite3.c (lib\3rdparty\sqlite3):    assert( pNode->nAlloc>=1+sqlite3Fts3VarintLen(iChild) );
+Sqlite3.c (lib\3rdparty\sqlite3):    assert( pNode->nAlloc>=1 );
+Sqlite3.c (lib\3rdparty\sqlite3):    else if( n>=11 && memcmp("tokenchars=", z, 11)==0 ){
+Sqlite3.c (lib\3rdparty\sqlite3):    else if( n>=11 && memcmp("separators=", z, 11)==0 ){
+Sqlite3.c (lib\3rdparty\sqlite3):  assert(nData>=1);

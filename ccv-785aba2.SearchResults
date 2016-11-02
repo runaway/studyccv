@@ -1,45 +1,21 @@
----- >=1 Matches (44 in 1 files) ----
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( i>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( i>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( i>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):  if( sqlite3GlobalConfig.pScratch && sqlite3GlobalConfig.szScratch>=100
-Sqlite3.c (lib\3rdparty\sqlite3):    assert( scratchAllocOut>=1 && scratchAllocOut<=2 );
-Sqlite3.c (lib\3rdparty\sqlite3):          while( realvalue>=1e100*scale && exp<=350 ){ scale *= 1e100;exp+=100;}
-Sqlite3.c (lib\3rdparty\sqlite3):          while( realvalue>=1e64*scale && exp<=350 ){ scale *= 1e64; exp+=64; }
-Sqlite3.c (lib\3rdparty\sqlite3):          while( realvalue>=1e8*scale && exp<=350 ){ scale *= 1e8; exp+=8; }
-Sqlite3.c (lib\3rdparty\sqlite3):          while( realvalue>=10.0*scale && exp<=350 ){ scale *= 10.0; exp++; }
-Sqlite3.c (lib\3rdparty\sqlite3):          if( realvalue>=10.0 ){ realvalue *= 0.1; exp++; }
-Sqlite3.c (lib\3rdparty\sqlite3):          if( exp>=100 ){
-Sqlite3.c (lib\3rdparty\sqlite3):  else if( n>=1 ) n -= 1;
-Sqlite3.c (lib\3rdparty\sqlite3):  if( pH->count>=10 && pH->count > 2*pH->htsize ){
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( n>=1 && n<SQLITE_SHM_NLOCK );
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( n>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( n>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( level>=1 && level<=3 );
-Sqlite3.c (lib\3rdparty\sqlite3):       && (iHash>=1 || iFrame<=HASHTABLE_NPAGE_ONE)
-Sqlite3.c (lib\3rdparty\sqlite3):    if( cnt>=10 ) nDelay = (cnt-9)*238;  /* Max delay 21ms. Total delay 996ms */
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( idx>=1 && idx<=15 );
-Sqlite3.c (lib\3rdparty\sqlite3):  }else if( p->nOp>=1 ){
-Sqlite3.c (lib\3rdparty\sqlite3):**    N>=12 and even       (N-12)/2        BLOB
-Sqlite3.c (lib\3rdparty\sqlite3):**    N>=13 and odd        (N-13)/2        text
-Sqlite3.c (lib\3rdparty\sqlite3):  if( serial_type>=12 ){
-Sqlite3.c (lib\3rdparty\sqlite3):  if( serial_type>=12 ){
-Sqlite3.c (lib\3rdparty\sqlite3):      assert( pOp->p5>=1 && pOp->p5<=4 );
-Sqlite3.c (lib\3rdparty\sqlite3):          && ((u.ap.t>=12 && (u.ap.t&1)==0) || (pOp->p5 & OPFLAG_TYPEOFARG)!=0))
-Sqlite3.c (lib\3rdparty\sqlite3):        assert( nFarg>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):**           aiRowEst[N]>=1
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( nExtra>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( db->vtabOnConflict>=1 && db->vtabOnConflict<=5 );
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( nEq>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):   && pProbe->aiRowEst[saved_nEq+1]>=18  /* TUNING: Minimum for skip-scan */
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( pWInfo->pTabList->nSrc>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):  ** Methods below this point are only available if iVersion>=1.
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( nVal>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):    if( pModule->iVersion>=1 ){
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( p->nIndex>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):  assert( iHeight>=1 && iHeight<128 );
-Sqlite3.c (lib\3rdparty\sqlite3):    assert( pNode->nAlloc>=1+sqlite3Fts3VarintLen(iChild) );
-Sqlite3.c (lib\3rdparty\sqlite3):    assert( pNode->nAlloc>=1 );
-Sqlite3.c (lib\3rdparty\sqlite3):    else if( n>=11 && memcmp("tokenchars=", z, 11)==0 ){
-Sqlite3.c (lib\3rdparty\sqlite3):    else if( n>=11 && memcmp("separators=", z, 11)==0 ){
-Sqlite3.c (lib\3rdparty\sqlite3):  assert(nData>=1);
+---- relabels Matches (23 in 3 files) ----
+Ccv.h (lib):relabels: How many relabel procedures are needed.
+Ccv.h (lib):root_relabels: How many relabel procedures for root classifier are needed.
+Ccv.h (lib):	int root_relabels; /**< How many relabel procedures for root classifier are needed. */
+Ccv.h (lib):	int relabels; /**< How many relabel procedures are needed. */
+Ccv_dpm.c (lib):	assert(params.relabels >= 0);
+Ccv_dpm.c (lib):									 int relabels, 
+Ccv_dpm.c (lib):	// 根分类器需要的重标记过程数root_relabels = 20
+Ccv_dpm.c (lib):	for (c = 0; c < relabels; c++)
+Ccv_dpm.c (lib):	PRINT(CCV_CLI_INFO, "expected %d root relabels, %d relabels, %d data minings and %d iterations\n", params.root_relabels, params.relabels, params.data_minings, params.iterations);
+Ccv_dpm.c (lib):													 params.root_relabels, 
+Ccv_dpm.c (lib):	for (; c < params.relabels; c++)
+Ccv_dpm.c (lib):			PRINT(CCV_CLI_INFO, "\n - data mining %d takes %.2lf seconds at loss %.5lf, %d more to go (%d of %d)\n", d + 1, (double)(_ccv_dpm_time_measure() - elapsed_time) / 1000000.0, loss, params.data_minings - d - 1, c + 1, params.relabels);
+Dpmcreate.c (bin):	"    --root-relabels : how many relabel procedures are needed for root model optimization [DEFAULT TO 20]\n"
+Dpmcreate.c (bin):	"    --relabels : how many relabel procedures are needed for part model optimization [DEFAULT TO 10]\n"
+Dpmcreate.c (bin):		{"root-relabels", 1, 0, 0},
+Dpmcreate.c (bin):		{"relabels", 1, 0, 0},
+Dpmcreate.c (bin):		.root_relabels = 20,
+Dpmcreate.c (bin):		.relabels = 10,
+Dpmcreate.c (bin):				params.root_relabels = atoi(optarg);
+Dpmcreate.c (bin):				params.relabels = atoi(optarg);

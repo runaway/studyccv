@@ -84,6 +84,7 @@ ccv_dense_matrix_t* ccv_dense_matrix_renew(ccv_dense_matrix_t* x, int rows, int 
 void ccv_make_matrix_mutable(ccv_matrix_t* mat)
 {
 	int type = *(int*)mat;
+	
 	if (type & CCV_MATRIX_DENSE)
 	{
 		ccv_dense_matrix_t* dmt = (ccv_dense_matrix_t*)mat;
@@ -95,6 +96,7 @@ void ccv_make_matrix_mutable(ccv_matrix_t* mat)
 void ccv_make_matrix_immutable(ccv_matrix_t* mat)
 {
 	int type = *(int*)mat;
+	
 	if (type & CCV_MATRIX_DENSE)
 	{
 		ccv_dense_matrix_t* dmt = (ccv_dense_matrix_t*)mat;
@@ -239,10 +241,12 @@ void ccv_matrix_free(ccv_matrix_t* mat)
 ccv_array_t* ccv_array_new(int rsize, int rnum, uint64_t sig)
 {
 	ccv_array_t* array;
+	
 	if (ccv_cache_opt && sig != 0)
 	{
 		uint8_t type;
 		array = (ccv_array_t*)ccv_cache_out(&ccv_cache, sig, &type);
+		
 		if (array)
 		{
 			assert(type == 1);
@@ -251,6 +255,7 @@ ccv_array_t* ccv_array_new(int rsize, int rnum, uint64_t sig)
 			return array;
 		}
 	}
+	
 	array = (ccv_array_t*)ccmalloc(sizeof(ccv_array_t));
 	array->sig = sig;
 	array->type = CCV_REUSABLE & ~CCV_GARBAGE;
@@ -258,6 +263,7 @@ ccv_array_t* ccv_array_new(int rsize, int rnum, uint64_t sig)
 	array->rsize = rsize;
 	array->size = ccv_max(rnum, 2 /* allocate memory for at least 2 items */);
 	array->data = ccmalloc((size_t)array->size * (size_t)rsize);
+	
 	return array;
 }
 

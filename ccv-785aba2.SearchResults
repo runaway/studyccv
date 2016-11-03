@@ -1,21 +1,14 @@
----- relabels Matches (23 in 3 files) ----
-Ccv.h (lib):relabels: How many relabel procedures are needed.
-Ccv.h (lib):root_relabels: How many relabel procedures for root classifier are needed.
-Ccv.h (lib):	int root_relabels; /**< How many relabel procedures for root classifier are needed. */
-Ccv.h (lib):	int relabels; /**< How many relabel procedures are needed. */
-Ccv_dpm.c (lib):	assert(params.relabels >= 0);
-Ccv_dpm.c (lib):									 int relabels, 
-Ccv_dpm.c (lib):	// 根分类器需要的重标记过程数root_relabels = 20
-Ccv_dpm.c (lib):	for (c = 0; c < relabels; c++)
-Ccv_dpm.c (lib):	PRINT(CCV_CLI_INFO, "expected %d root relabels, %d relabels, %d data minings and %d iterations\n", params.root_relabels, params.relabels, params.data_minings, params.iterations);
-Ccv_dpm.c (lib):													 params.root_relabels, 
-Ccv_dpm.c (lib):	for (; c < params.relabels; c++)
-Ccv_dpm.c (lib):			PRINT(CCV_CLI_INFO, "\n - data mining %d takes %.2lf seconds at loss %.5lf, %d more to go (%d of %d)\n", d + 1, (double)(_ccv_dpm_time_measure() - elapsed_time) / 1000000.0, loss, params.data_minings - d - 1, c + 1, params.relabels);
-Dpmcreate.c (bin):	"    --root-relabels : how many relabel procedures are needed for root model optimization [DEFAULT TO 20]\n"
-Dpmcreate.c (bin):	"    --relabels : how many relabel procedures are needed for part model optimization [DEFAULT TO 10]\n"
-Dpmcreate.c (bin):		{"root-relabels", 1, 0, 0},
-Dpmcreate.c (bin):		{"relabels", 1, 0, 0},
-Dpmcreate.c (bin):		.root_relabels = 20,
-Dpmcreate.c (bin):		.relabels = 10,
-Dpmcreate.c (bin):				params.root_relabels = atoi(optarg);
-Dpmcreate.c (bin):				params.relabels = atoi(optarg);
+---- CCV_DPM_PART_MAX Matches (13 in 2 files) ----
+Ccv.h (lib):#define CCV_DPM_PART_MAX (10)
+Ccv.h (lib):	ccv_comp_t part[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):			ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):			ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):			ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):			ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):			ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):			ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):				ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):				ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):				ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
+Ccv_dpm.c (lib):					memcpy(comps[idx].part, r1.part, sizeof(ccv_comp_t) * CCV_DPM_PART_MAX);
+Ccv_dpm.c (lib):				memcpy(comps[idx].part, r1.part, sizeof(ccv_comp_t) * CCV_DPM_PART_MAX);

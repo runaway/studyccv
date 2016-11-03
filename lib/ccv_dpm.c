@@ -13,7 +13,8 @@
 #include <linear.h>
 #endif
 
-const ccv_dpm_param_t ccv_dpm_default_params = {
+const ccv_dpm_param_t ccv_dpm_default_params = 
+{
 	.interval = 8,
 	.min_neighbors = 1,
 	.flags = 0,
@@ -58,7 +59,11 @@ LogTest()
 }
 
 
-static int _ccv_dpm_scale_upto(ccv_dense_matrix_t* a, ccv_dpm_mixture_model_t** _model, int count, int interval)
+static int 
+_ccv_dpm_scale_upto(ccv_dense_matrix_t* a, 
+					ccv_dpm_mixture_model_t** _model, 
+					int count, 
+					int interval)
 {
 	int c, i;
 	ccv_size_t size = ccv_size(a->cols, a->rows);
@@ -74,7 +79,8 @@ static int _ccv_dpm_scale_upto(ccv_dense_matrix_t* a, ccv_dpm_mixture_model_t** 
 			size.height = ccv_min(model->root[i].root.w->rows * CCV_DPM_WINDOW_SIZE, size.height);
 		}
 	}
-	
+
+	// 计算分块后的图像高和宽
 	int hr = a->rows / size.height;
 	int wr = a->cols / size.width;
 	double scale = pow(2.0, 1.0 / (interval + 1.0));
@@ -83,11 +89,40 @@ static int _ccv_dpm_scale_upto(ccv_dense_matrix_t* a, ccv_dpm_mixture_model_t** 
 	return (int)(log((double)ccv_min(hr, wr)) / log(scale)) - next;
 }
 
+/*
+    我们的所有模型都涉及将线性滤波器应用到稠密特征映射中。特征映射(feature map)
+是一个数组，其元素由从一张图像中计算出来的所有d维特征向量组成，每个特征向量描述
+一块图像区域。实际中我们用的是论文[10]中的HOG特征的变体，但这里讨论的框架是与特
+征选择无关的。
+    滤波器(filter)是由d维权重向量定义的一个矩形模版。滤波器F在特征映射G中位置
+(x,y)处的响应值(response)或得分是滤波器向量与以(x, y)为左上角点的子窗口的特征向
+量的点积(DotProduct)：
+
+    我们想要定义在图像不同位置和尺度的得分，这是通过使用特征金字塔来实现的，特
+征金字塔表示了一定范围内有限几个尺度构成的特征映射。首先通过不断的平滑和子采样
+计算一个标准的图像金字塔，然后计算金字塔中每层图像的所有特征。图3展示了特征金字塔。
+
+	图3，特征金字塔和其中的一个人体模型实例。部件滤波器位于根滤波器两倍空间分辨
+率的金字塔层。
+ 
+	根据参数λ在特征金字塔中进行尺度采样，λ定义了组中层的个数。也就是说，λ是
+我们为了获得某一层的两倍分辨率而需要在金字塔中向下走的层数。实际中在训练时λ=5，
+在测试时λ=10。尺度空间的精细采样对于我们的方法获得较高的性能表现非常重要。
+    [10]中的系统使用单个滤波器来定义整个目标模型，它计算滤波器在HOG特征金字塔中
+所有位置和层的得分，通过对得分阈值化来检测目标。
+    假设F是一个w * h 大小的滤波器，H是特征金字塔，p = (x, y, l)指定金字塔中l层
+的位置(x, y)，φ(H,p, w, h)表示金字塔H中以p为左上角点的w*h大小的子窗口中的所有
+特征向量按行优先顺序串接起来得到的向量。滤波器F在位置p处的得分为F’·φ(H, p, w, h)，
+F’表示将F中的权重向量按行优先顺序串接起来得到的向量。此后我们使用F’·φ(H,p)
+代替F’·φ(H, p, w, h)，因为子窗口的大小已隐含包括在滤波器F中。
+*/
 static void _ccv_dpm_feature_pyramid(ccv_dense_matrix_t* a, 
 									 ccv_dense_matrix_t** pyr, 
 									 int scale_upto, 
 									 int interval)
 {
+	// λ是我们为了获得某一层的两倍分辨率而需要在金字塔中向下走的层数
+	// .interval = 8, next == λ == 9
 	int next = interval + 1;
 	double scale = pow(2.0, 1.0 / (interval + 1.0));
 	memset(pyr, 0, (scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
@@ -151,12 +186,19 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 								   ccv_dense_matrix_t** dy)
 {
 	ccv_dense_matrix_t* response = 0;
+
+	// 计算输入的根分类器在当前金字塔层的响应，输出到response
 	ccv_filter(hog, root_classifier->root.w, &response, 0, CCV_NO_PADDING);
 	ccv_dense_matrix_t* root_feature = 0;
+
+	// 将response各通道相应的元素平均到root_feature相应的元素里面
 	ccv_flatten(response, (ccv_matrix_t**)&root_feature, 0, 0);
 	ccv_matrix_free(response);
+
+	// 设置输出响应矩阵_response为root_feature
 	*_response = root_feature;
-	
+
+	// 如果两倍空间分辨率的金字塔层为空则退出
 	if (hog2x == 0)
 		return;
 	
@@ -169,13 +211,28 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 	{
 		ccv_dpm_part_classifier_t* part = root_classifier->part + i;
 		ccv_dense_matrix_t* response = 0;
+
+		// 计算第i个部件分类器在当前两倍空间分辨率金字塔层的响应，输出到response
+		// 部件滤波器位于根滤波器两倍空间分辨率的金字塔层
 		ccv_filter(hog2x, part->w, &response, 0, CCV_NO_PADDING);
 		ccv_dense_matrix_t* feature = 0;
+
+		// 将每个部件的response各通道相应的元素平均到feature相应的元素里面
 		ccv_flatten(response, (ccv_matrix_t**)&feature, 0, 0);
 		ccv_matrix_free(response);
 		part_feature[i] = dx[i] = dy[i] = 0;
-		ccv_distance_transform(feature, &part_feature[i], 0, &dx[i], 0, &dy[i], 0, part->dx, part->dy, part->dxx, part->dyy, CCV_NEGATIVE | CCV_GSEDT);
+
+		// 将第i个部件特征feature做广义距离变换到part_feature[i]
+		ccv_distance_transform(feature, 
+							   &part_feature[i], 
+							   0, 
+							   &dx[i], 0, 
+							   &dy[i], 0, 
+							   part->dx, part->dy, part->dxx, part->dyy, 
+							   CCV_NEGATIVE | CCV_GSEDT);
+
 		ccv_matrix_free(feature);
+		
 		int pwh = (part->w->rows - 1) / 2, pww = (part->w->cols - 1) / 2;
 		int offy = part->y + pwh - rwh * 2;
 		int miny = pwh, maxy = part_feature[i]->rows - part->w->rows + pwh;
@@ -190,7 +247,8 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 			for (x = rww; x < root_feature->cols - rww_1; x++)
 			{
 				int ix = ccv_clamp(x * 2 + offx, minx, maxx);
-				f_ptr[x] -= ccv_get_dense_matrix_cell_value_by(CCV_32F | CCV_C1, part_feature[i], iy, ix, 0);
+				f_ptr[x] -= 
+					ccv_get_dense_matrix_cell_value_by(CCV_32F | CCV_C1, part_feature[i], iy, ix, 0);
 			}
 			
 			f_ptr += root_feature->cols;
@@ -955,6 +1013,7 @@ static void _ccv_dpm_feature_vector_cleanup(ccv_dpm_feature_vector_t* vector)
 static void _ccv_dpm_feature_vector_free(ccv_dpm_feature_vector_t* vector)
 {
 	_ccv_dpm_feature_vector_cleanup(vector);
+	
 	ccfree(vector);
 }
 
@@ -1407,6 +1466,7 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 
 	for (i = 0; i < model->count; i++)
 	{
+		// 获取当前根分类器
 		ccv_dpm_root_classifier_t* root_classifier = model->root + i;
 
 		// 申请矩阵空间
@@ -1436,9 +1496,10 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 					gsl_matrix_set(X, c, k * 2 + 2, v->part[k].dy);
 				}
 
+				// 获取第j个正样本包围盒矩形到bbox
 				ccv_rect_t bbox = bboxes[j];
 
-				// y[0],y[1]包围盒中心点归一化后的坐标，y[2]归一化后的包围和面积
+				// y[0],y[1]包围盒中心点归一化后的坐标，y[2]归一化后的包围盒面积
 				// 对vector赋值, vector名称, 分量序号, 值
 				gsl_vector_set(y[0], 
 							   c, 
@@ -1455,6 +1516,8 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 							    * CCV_DPM_WINDOW_SIZE 
 							    * root_classifier->root.w->cols * v->scale_y 
 							    * CCV_DPM_WINDOW_SIZE)) - 1.0);
+
+				// 已处理的正样本计数+1
 				++c;
 			}
 		}
@@ -1470,14 +1533,17 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 			// 自变量 因变量 结果 协方差矩阵 残差 工作空间(长宽与x的长宽相同)
 			gsl_multifit_linear(X, y[j], z, cov, &chisq, workspace);
 
-			// 获取z(j0)到alpha(j)
+			// 获取z(j0)到根分类器的alpha[j]
 			discard_estimating_constant
 			root_classifier->alpha[j] = 
 				params.discard_estimating_constant ? 0 : gsl_vector_get(z, 0);
 
 			for (k = 0; k < root_classifier->count; k++)
 			{
+				// 获取第k个部件分类器指针
 				ccv_dpm_part_classifier_t* part_classifier = root_classifier->part + k;
+
+				// 获取拟合过后的系数z[]到部件分类器的alpha[j * 2],alpha[j * 2 + 1]
 				part_classifier->alpha[j * 2] = gsl_vector_get(z, k * 2 + 1);
 				part_classifier->alpha[j * 2 + 1] = gsl_vector_get(z, k * 2 + 2);
 			}
@@ -1491,7 +1557,8 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 		gsl_vector_free(y[2]);
 		gsl_matrix_free(X);
 	}
-	
+
+	// 释放正样本集
 	for (i = 0; i < posnum; i++)
 		if (posv[i])
 			_ccv_dpm_feature_vector_free(posv[i]);
@@ -2703,6 +2770,7 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		比例特别低，负样本太多，直接导致优化过程很慢，因为很多负样本远离分界面
 		对于优化几乎没有帮助。Data-minig的作用就是去掉那些对优化作用很小的
 		Easy-examples保留靠近分界面的Hard-examples。分别对应13和10。*/
+		// 数据挖掘:挖掘难例需要多少数据挖掘过程(默认到50)
 		// data-minings : how many data mining procedures are needed for discovering hard examples [DEFAULT TO 50]
 		// 7: for data_mining := 1 to num_mining do
 		for (; d < params.data_minings; d++)
@@ -2710,6 +2778,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 			// cache用完，重新收集
 			// the cache is used up now, collect again
 			_ccv_dpm_write_gradient_descent_progress(c, d, gradient_progress_checkpoint);
+
+			// 获取随机梯度下降的步长
 			double alpha = params.alpha;
 
 			// 如果负样本集negv不为空
@@ -3105,6 +3175,8 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 									ccv_dpm_param_t params)
 {
 	int c, i, j, k, x, y;
+
+	// .interval = 8, .min_neighbors = 1, .flags = 0, .threshold = 0.6, // 0.8
 	double scale = pow(2.0, 1.0 / (params.interval + 1.0));
 	int next = params.interval + 1;
 
@@ -3115,8 +3187,9 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 	if (scale_upto < 0) // image is too small to be interesting
 		return 0;
 
-	// 生成DPM特征金字塔
-	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
+	// 根据输入图像a生成DPM特征金字塔pyr
+	ccv_dense_matrix_t** pyr = 
+		(ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * sizeof(ccv_dense_matrix_t*));
 	_ccv_dpm_feature_pyramid(a, pyr, scale_upto, params.interval);
 
 	ccv_array_t* idx_seq;
@@ -3124,16 +3197,21 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 	ccv_array_t* seq2 = ccv_array_new(sizeof(ccv_root_comp_t), 64, 0);
 	ccv_array_t* result_seq = ccv_array_new(sizeof(ccv_root_comp_t), 64, 0);
 
+	// 按组件数循环
 	for (c = 0; c < count; c++)
 	{
+		// 获取第c个_model
 		ccv_dpm_mixture_model_t* model = _model[c];
 		double scale_x = 1.0;
 		double scale_y = 1.0;
-		
+
+		// next == 9
 		for (i = next; i < scale_upto + next * 2; i++)
 		{
+			// 按模型数循环
 			for (j = 0; j < model->count; j++)
 			{
+				// 获取第j个根分类器指针root
 				ccv_dpm_root_classifier_t* root = model->root + j;
 				ccv_dense_matrix_t* root_feature = 0;
 				ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
@@ -3141,7 +3219,13 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 				ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
 
 				// 计算综合得分score(x0, y0, l0)
-				_ccv_dpm_compute_score(root, pyr[i], pyr[i - next], &root_feature, part_feature, dx, dy);
+				_ccv_dpm_compute_score(root, 
+									   pyr[i], 
+									   pyr[i - next], 
+									   &root_feature, 
+									   part_feature, 
+									   dx, 
+									   dy);
 
 				int rwh = (root->root.w->rows - 1) / 2, rww = (root->root.w->cols - 1) / 2;
 				int rwh_1 = root->root.w->rows / 2, rww_1 = root->root.w->cols / 2;
@@ -3234,6 +3318,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 
 				comps[idx].classification.id = r1.classification.id;
 				comps[idx].pnum = r1.pnum;
+				
 				if (r1.classification.confidence > comps[idx].classification.confidence || comps[idx].neighbors == 0)
 				{
 					comps[idx].rect = r1.rect;
@@ -3321,11 +3406,13 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 	ccv_array_free(seq);
 	ccv_array_free(seq2);
 
+	// 定义检测到的目标序列
 	ccv_array_t* result_seq2;
 	
 	/* the following code from OpenCV's haar feature implementation */
 	if (params.flags & CCV_DPM_NO_NESTED)
 	{
+		// 分配64个组件空间
 		result_seq2 = ccv_array_new(sizeof(ccv_root_comp_t), 64, 0);
 		idx_seq = 0;
 
@@ -3342,7 +3429,8 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 			ccv_root_comp_t r1 = *(ccv_root_comp_t*)ccv_array_get(result_seq, i);
 			int idx = *(int*)ccv_array_get(idx_seq, i);
 
-			if (comps[idx].neighbors == 0 || comps[idx].classification.confidence < r1.classification.confidence)
+			if (comps[idx].neighbors == 0 
+			 || comps[idx].classification.confidence < r1.classification.confidence)
 			{
 				comps[idx].classification.confidence = r1.classification.confidence;
 				comps[idx].neighbors = 1;
@@ -3367,6 +3455,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 		result_seq2 = result_seq;
 	}
 
+	// 返回检测到的目标序列
 	return result_seq2;
 }
 

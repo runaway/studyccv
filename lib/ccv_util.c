@@ -100,6 +100,7 @@ void ccv_flatten(ccv_matrix_t* a, ccv_matrix_t** b, int type, int flag)
 	int i, j, k, ch = CCV_GET_CHANNEL(da->type);
 	unsigned char* aptr = da->data.u8;
 	unsigned char* bptr = db->data.u8;
+	
 #define for_block(_for_get, _for_type, _for_set) \
 	for (i = 0; i < da->rows; i++) \
 	{ \

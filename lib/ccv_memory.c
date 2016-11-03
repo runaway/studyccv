@@ -58,7 +58,13 @@ ccv_dense_matrix_t* ccv_dense_matrix_new(int rows, int cols, int type, void* dat
 	return mat;
 }
 
-ccv_dense_matrix_t* ccv_dense_matrix_renew(ccv_dense_matrix_t* x, int rows, int cols, int types, int prefer_type, uint64_t sig)
+ccv_dense_matrix_t* 
+ccv_dense_matrix_renew(ccv_dense_matrix_t* x, 
+					   int rows, 
+					   int cols, 
+					   int types, 
+					   int prefer_type, 
+					   uint64_t sig)
 {
 	if (x != 0)
 	{

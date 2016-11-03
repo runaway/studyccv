@@ -77,7 +77,8 @@ enum {
 	CCV_NO_DATA_ALLOC = 0x10000000, // matrix is allocated as header only, but with no data section, therefore, you have to free the data section separately
 };
 
-typedef union {
+typedef union 
+{
 	unsigned char* u8;
 	int* i32;
 	float* f32;
@@ -1542,7 +1543,8 @@ typedef struct
 	ccv_dpm_param_t detector; /**< A **ccv_dpm_params_t** structure that will be used to search positive examples and negative examples from background images. */
 } ccv_dpm_new_param_t;
 
-enum {
+enum 
+{
 	CCV_DPM_NO_NESTED = 0x10000000,
 };
 

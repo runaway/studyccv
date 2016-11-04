@@ -1,14 +1,2 @@
----- CCV_DPM_PART_MAX Matches (13 in 2 files) ----
-Ccv.h (lib):#define CCV_DPM_PART_MAX (10)
-Ccv.h (lib):	ccv_comp_t part[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):			ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):			ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):			ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):			ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):			ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):			ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):				ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):				ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):				ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
-Ccv_dpm.c (lib):					memcpy(comps[idx].part, r1.part, sizeof(ccv_comp_t) * CCV_DPM_PART_MAX);
-Ccv_dpm.c (lib):				memcpy(comps[idx].part, r1.part, sizeof(ccv_comp_t) * CCV_DPM_PART_MAX);
+---- 大纪元 Matches (1 in 1 files) ----
+Ccv_convnet.c (lib):	// 按最大纪元数来循环

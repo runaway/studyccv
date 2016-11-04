@@ -36,6 +36,7 @@ int main(int argc, char** argv)
 		// ¼ì²âÄ¿±ê
 		ccv_array_t* seq = ccv_dpm_detect_objects(image, &model, 1, ccv_dpm_default_params);
 		elapsed_time = get_current_time() - elapsed_time;
+
 		if (seq)
 		{
 			for (i = 0; i < seq->rnum; i++)
@@ -47,19 +48,26 @@ int main(int argc, char** argv)
 			}
 			printf("total : %d in time %dms\n", seq->rnum, elapsed_time);
 			ccv_array_free(seq);
-		} else {
+		} 
+		else 
+		{
 			printf("elapsed time %dms\n", elapsed_time);
 		}
 		ccv_matrix_free(image);
-	} else {
+	} 
+	else 
+	{
 		FILE* r = fopen(argv[1], "rt");
+
 		if (argc == 4)
 			chdir(argv[3]);
+
 		if(r)
 		{
 			size_t len = 1024;
 			char* file = (char*)malloc(len);
 			ssize_t read;
+			
 			while((read = getline(&file, &len, r)) != -1)
 			{
 				while(read > 1 && isspace(file[read - 1]))

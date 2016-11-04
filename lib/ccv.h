@@ -1454,10 +1454,13 @@ typedef struct {
 	ccv_classification_t classification;
 } ccv_comp_t;
 
-typedef struct {
+typedef struct 
+{
 	ccv_rect_t rect;
 	int neighbors;
 	ccv_classification_t classification;
+
+	// 部件数
 	int pnum;
 	ccv_comp_t part[CCV_DPM_PART_MAX];
 } ccv_root_comp_t;
@@ -1468,6 +1471,8 @@ typedef struct
 	double dx, dy, dxx, dyy;
 	int x, y, z;
 	int counterpart;
+
+	// 0,1部件漂移x因子 2,3部件漂移y因子 4,5部件尺度因子
 	float alpha[6];
 } ccv_dpm_part_classifier_t;
 
@@ -1476,6 +1481,8 @@ typedef struct
 	int count;
 	ccv_dpm_part_classifier_t root;
 	ccv_dpm_part_classifier_t* part;
+
+	// 根部件的x,y漂移和尺度
 	float alpha[3], beta;
 } ccv_dpm_root_classifier_t;
 

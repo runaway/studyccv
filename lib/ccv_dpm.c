@@ -203,6 +203,8 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 		return;
 	
 	ccv_make_matrix_mutable(root_feature);
+
+	// 计算根分类器w行列数的一半rwh,rww
 	int rwh = (root_classifier->root.w->rows - 1) / 2, rww = (root_classifier->root.w->cols - 1) / 2;
 	int rwh_1 = root_classifier->root.w->rows / 2, rww_1 = root_classifier->root.w->cols / 2;
 	int i, x, y;
@@ -232,21 +234,32 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 							   CCV_NEGATIVE | CCV_GSEDT);
 
 		ccv_matrix_free(feature);
-		
+
+		// 计算第i个部件分类器w行列数的一半pwh,pww
 		int pwh = (part->w->rows - 1) / 2, pww = (part->w->cols - 1) / 2;
+
+		// 计算第i个部件分类器到部件中心的y偏移offy
 		int offy = part->y + pwh - rwh * 2;
 		int miny = pwh, maxy = part_feature[i]->rows - part->w->rows + pwh;
+
+		// 计算第i个部件分类器到部件中心的x偏移offx
 		int offx = part->x + pww - rww * 2;
 		int minx = pww, maxx = part_feature[i]->cols - part->w->cols + pww;
+
+		// 从root_feature里获取rwh行0列的数据指针到f_ptr
 		float* f_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
 
 		for (y = rwh; y < root_feature->rows - rwh_1; y++)
 		{
+			// 计算第i个部件在y方向的偏移并在(miny, maxy)做饱和运算存到iy
 			int iy = ccv_clamp(y * 2 + offy, miny, maxy);
 
 			for (x = rww; x < root_feature->cols - rww_1; x++)
 			{
+				// 计算第i个部件在x方向的偏移并在(minx, maxx)做饱和运算存到ix
 				int ix = ccv_clamp(x * 2 + offx, minx, maxx);
+
+				// 从根特征值中减去第i个部件特征中的(iy, ix)元素
 				f_ptr[x] -= 
 					ccv_get_dense_matrix_cell_value_by(CCV_32F | CCV_C1, part_feature[i], iy, ix, 0);
 			}
@@ -3218,7 +3231,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 				ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
 				ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
 
-				// 计算综合得分score(x0, y0, l0)
+				// 计算综合得分score(x0, y0, l0)放到&root_feature,part_feature里
 				_ccv_dpm_compute_score(root, 
 									   pyr[i], 
 									   pyr[i - next], 
@@ -3227,8 +3240,16 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 									   dx, 
 									   dy);
 
+				// 计算根分类器w行列数的一半rwh,rww,rwh_1,rww_1
 				int rwh = (root->root.w->rows - 1) / 2, rww = (root->root.w->cols - 1) / 2;
 				int rwh_1 = root->root.w->rows / 2, rww_1 = root->root.w->cols / 2;
+
+				// 从root_feature里获取rwh行0列的数据指针到f_ptr
+				/* 这些数值设计来确保根分类器奇偶行列的有效性:
+				假设图像是6x6，根分类器也是6x6，则扫描区域应该从(2,2)到(2,2),
+				因此，它通过(rwh, rww)到(6 - rwh_1 - 1, 6 - rww_1 - 1)
+				这个计算对奇数根分类器也有效
+				*/
 				/* these values are designed to make sure works with odd/even number of rows/cols
 				 * of the root classifier:
 				 * suppose the image is 6x6, and the root classifier is 6x6, the scan area should starts
@@ -3239,41 +3260,87 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 				for (y = rwh; y < root_feature->rows - rwh_1; y++)
 				{
 					for (x = rww; x < root_feature->cols - rww_1; x++)
+					{
+						// 如果组件置信度(根特征值 + 偏移) > 阈值0.6
 						if (f_ptr[x] + root->beta > params.threshold)
 						{
 							ccv_root_comp_t comp;
 							comp.neighbors = 1;
+
+							// 设置组件类别为c + 1
 							comp.classification.id = c + 1;
+
+							// 设置组件置信度为f_ptr[x] + root->beta
 							comp.classification.confidence = f_ptr[x] + root->beta;
+
+							// 设置组件的部件数
 							comp.pnum = root->count;
+
+							// 获取根部件的x,y漂移和尺度
 							float drift_x = root->alpha[0],
 								  drift_y = root->alpha[1],
 								  drift_scale = root->alpha[2];
-							
+
+							// 按部件分类器个数循环 
 							for (k = 0; k < root->count; k++)
 							{
+								// 获取第k个部件分类器
 								ccv_dpm_part_classifier_t* part = root->part + k;
 								comp.part[k].neighbors = 1;
+
+								// 设置部件k类别为c
 								comp.part[k].classification.id = c;
+
+								// 计算部件行列数的一半
 								int pww = (part->w->cols - 1) / 2, pwh = (part->w->rows - 1) / 2;
+
+								// 计算部件偏移
 								int offy = part->y + pwh - rwh * 2;
 								int offx = part->x + pww - rww * 2;
 								int iy = ccv_clamp(y * 2 + offy, pwh, part_feature[k]->rows - part->w->rows + pwh);
 								int ix = ccv_clamp(x * 2 + offx, pww, part_feature[k]->cols - part->w->cols + pww);
-								int ry = ccv_get_dense_matrix_cell_value_by(CCV_32S | CCV_C1, dy[k], iy, ix, 0);
-								int rx = ccv_get_dense_matrix_cell_value_by(CCV_32S | CCV_C1, dx[k], iy, ix, 0);
+
+								// 从广义距离dy,dx里获取对应的元素ry,rx
+								int ry = 
+									ccv_get_dense_matrix_cell_value_by(CCV_32S | CCV_C1, dy[k], iy, ix, 0);
+								int rx = 
+									ccv_get_dense_matrix_cell_value_by(CCV_32S | CCV_C1, dx[k], iy, ix, 0);
+
+								// 累加部件k的漂移到组件漂移
+								// di dp Phi_d(dx, dy)即为最普遍的欧氏距离
 								drift_x += part->alpha[0] * rx + part->alpha[1] * ry;
 								drift_y += part->alpha[2] * rx + part->alpha[3] * ry;
+
+								// 累加部件k的尺度到组件尺度
 								drift_scale += part->alpha[4] * rx + part->alpha[5] * ry;
 								ry = iy - ry;
 								rx = ix - rx;
-								comp.part[k].rect = ccv_rect((int)((rx - pww) * CCV_DPM_WINDOW_SIZE / 2 * scale_x + 0.5), (int)((ry - pwh) * CCV_DPM_WINDOW_SIZE / 2 * scale_y + 0.5), (int)(part->w->cols * CCV_DPM_WINDOW_SIZE / 2 * scale_x + 0.5), (int)(part->w->rows * CCV_DPM_WINDOW_SIZE / 2 * scale_y + 0.5));
-								comp.part[k].classification.confidence = -ccv_get_dense_matrix_cell_value_by(CCV_32F | CCV_C1, part_feature[k], iy, ix, 0);
+
+								// 计算部件k的包围框
+								comp.part[k].rect = 
+									ccv_rect((int)((rx - pww) * CCV_DPM_WINDOW_SIZE / 2 * scale_x + 0.5), 
+											 (int)((ry - pwh) * CCV_DPM_WINDOW_SIZE / 2 * scale_y + 0.5), 
+											 (int)(part->w->cols * CCV_DPM_WINDOW_SIZE / 2 * scale_x + 0.5), 
+											 (int)(part->w->rows * CCV_DPM_WINDOW_SIZE / 2 * scale_y + 0.5));
+
+								// 获取部件k的置信度
+								comp.part[k].classification.confidence = 
+									-ccv_get_dense_matrix_cell_value_by(CCV_32F | CCV_C1, part_feature[k], iy, ix, 0);
 							}
-							
-							comp.rect = ccv_rect((int)((x + drift_x) * CCV_DPM_WINDOW_SIZE * scale_x - rww * CCV_DPM_WINDOW_SIZE * scale_x * (1.0 + drift_scale) + 0.5), (int)((y + drift_y) * CCV_DPM_WINDOW_SIZE * scale_y - rwh * CCV_DPM_WINDOW_SIZE * scale_y * (1.0 + drift_scale) + 0.5), (int)(root->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x * (1.0 + drift_scale) + 0.5), (int)(root->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y * (1.0 + drift_scale) + 0.5));
+
+							// 计算组件的包围框
+							comp.rect = 
+								ccv_rect((int)(
+								(x + drift_x) * CCV_DPM_WINDOW_SIZE * scale_x - rww * CCV_DPM_WINDOW_SIZE * scale_x * (1.0 + drift_scale) + 0.5), 
+								(int)((y + drift_y) * CCV_DPM_WINDOW_SIZE * scale_y - rwh * CCV_DPM_WINDOW_SIZE * scale_y * (1.0 + drift_scale) + 0.5), 
+								(int)(root->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x * (1.0 + drift_scale) + 0.5), 
+								(int)(root->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y * (1.0 + drift_scale) + 0.5));
+
+							// 将该组件压栈到seq
 							ccv_array_push(seq, &comp);
 						}
+					}
+					
 					f_ptr += root_feature->cols;
 				}
 				
@@ -3368,6 +3435,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 			for (i = 0; i < seq2->rnum; i++)
 			{
 				ccv_root_comp_t r1 = *(ccv_root_comp_t*)ccv_array_get(seq2, i);
+
 				if (r1.classification.id > 0)
 				{
 					int flag = 1;
@@ -3400,6 +3468,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 		}
 	}
 
+	// 释放金字塔
 	for (i = 0; i < scale_upto + next * 2; i++)
 		ccv_matrix_free(pyr[i]);
 

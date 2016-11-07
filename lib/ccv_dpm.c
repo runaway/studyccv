@@ -221,7 +221,11 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 
 		// 将每个部件的response各通道相应的元素平均到feature相应的元素里面
 		ccv_flatten(response, (ccv_matrix_t**)&feature, 0, 0);
+
+		// 释放响应矩阵
 		ccv_matrix_free(response);
+
+		// 部件特征，广义距离置零
 		part_feature[i] = dx[i] = dy[i] = 0;
 
 		// 将第i个部件特征feature做广义距离变换到part_feature[i]
@@ -249,9 +253,16 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 		// 从root_feature里获取rwh行0列的数据指针到f_ptr
 		float* f_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
 
+		/* DPM的检测过程基于窗口扫描方法，对每个窗口计算如下分数： 
+		窗口的分数 = 该位置根滤波器的分数 + ∑[i~m]max(第i个部件分数 - 第i个部件偏差)
+		根滤波器和部件滤波器的分数是指滤波器与该滤波器中的HOG特征向量的内积，其
+		中max的意思是，因为每个部件是可以移动的，每次移动都会产生一个分数和对应
+		的偏差，在这个窗口内，我们要找出最佳的部件，也就是公式中提到的最大值。
+		之后设定一个阈值，窗口分数高于阈值的则判别为目标。 
+		*/
 		for (y = rwh; y < root_feature->rows - rwh_1; y++)
 		{
-			// 计算第i个部件在y方向的偏移并在(miny, maxy)做饱和运算存到iy
+			// 计算第i个部件在部件金字塔y方向的偏移并在(miny, maxy)做饱和运算存到iy
 			int iy = ccv_clamp(y * 2 + offy, miny, maxy);
 
 			for (x = rww; x < root_feature->cols - rww_1; x++)
@@ -2022,6 +2033,13 @@ static void _ccv_dpm_check_params(ccv_dpm_new_param_t params)
 #define REGQ (100)
 
 /*
+L-SVM中的优化问题可以使用坐标下降法求解：
+1）保持W'固定，在正样本集合内优化隐藏变量q, qi = argmax[qi∈Q(xi)] β* Φ(W', q)  
+2）根据步骤一的结果保持{qi}固定,公式(3-9)变为凸函数,可以转换为凸二次规划问题求解。
+3）循环以上两个步骤，直到最后的结果收敛或者满足给定的条件为止。
+
+
+
 让Zp假设一个训练集里所有正例的隐形变量，LSVM的优化过程如下所示：
 
 1) 重新标记训练集的图像：在确定β的情况下，对每个训练集图像找的得分最高的位置：
@@ -2082,6 +2100,7 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 		int* pos_prog = (int*)alloca(sizeof(int) * model->count);
 		memset(pos_prog, 0, sizeof(int) * model->count);
 
+		// 1）保持W'固定，在正样本集合内优化隐藏变量q, qi = argmax[qi∈Q(xi)] β* Φ(W', q)  
 		// 1) 重新标记训练集的图像：在确定β的情况下，对每个训练集图像找的得分最高的位置：
 		// argmax[z∈Z(xi)] β* Φ(xi, z) 
 		for (i = 0; i < posnum; i++)
@@ -2147,6 +2166,7 @@ _ccv_dpm_optimize_root_mixture_model(gsl_rng* rng,
 		double alpha = previous_alpha;
 		previous_positive_loss = previous_negative_loss = 0;
 
+		// 2）根据步骤一的结果保持{qi}固定,公式(3-9)变为凸函数,可以转换为凸二次规划问题求解。
 		// 2) 重新优化模型参数:LD(β) = 1 / 2 * ||β|| ^ 2 + C∑max(0, 1 - yi * fβ(xi))
 		// 500 1000 50000
 		for (t = 0; t < iterations; t++)
@@ -3261,6 +3281,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 				{
 					for (x = rww; x < root_feature->cols - rww_1; x++)
 					{
+						// 设定一个阈值，窗口分数高于阈值的则判别为目标。 
 						// 如果组件置信度(根特征值 + 偏移) > 阈值0.6
 						if (f_ptr[x] + root->beta > params.threshold)
 						{
@@ -3343,7 +3364,8 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 					
 					f_ptr += root_feature->cols;
 				}
-				
+
+				// 释放部件特征向量和广义距离
 				for (k = 0; k < root->count; k++)
 				{
 					ccv_matrix_free(part_feature[k]);
@@ -3358,25 +3380,30 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 			scale_y *= scale;
 		}
 
+		// 下面的代码是取自OpenCV的HAAR特征实现
 		/* the following code from OpenCV's haar feature implementation */
+		// 如果最小邻居数为0
 		if (params.min_neighbors == 0)
 		{
+			// 按序列的元素个数循环
 			for (i = 0; i < seq->rnum; i++)
 			{
 				ccv_root_comp_t* comp = (ccv_root_comp_t*)ccv_array_get(seq, i);
 				ccv_array_push(result_seq, comp);
 			}
 		} 
-		else 
+		else // 如果最小邻居数不为0
 		{
 			idx_seq = 0;
 			ccv_array_clear(seq2);
-			
+
+			// 分组已获取的矩形以滤除噪声
 			// group retrieved rectangles in order to filter out noise
 			int ncomp = ccv_array_group(seq, &idx_seq, _ccv_is_equal_same_class, 0);
 			ccv_root_comp_t* comps = (ccv_root_comp_t*)ccmalloc((ncomp + 1) * sizeof(ccv_root_comp_t));
 			memset(comps, 0, (ncomp + 1) * sizeof(ccv_root_comp_t));
 
+			// 邻居数目计数
 			// count number of neighbors
 			for (i = 0; i < seq->rnum; i++)
 			{
@@ -3385,14 +3412,20 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 
 				comps[idx].classification.id = r1.classification.id;
 				comps[idx].pnum = r1.pnum;
-				
-				if (r1.classification.confidence > comps[idx].classification.confidence || comps[idx].neighbors == 0)
+
+				// 如果当前目标框的置信度大于当前组件的置信度并且当前组件的邻居数为0
+				if (r1.classification.confidence > comps[idx].classification.confidence 
+				 || comps[idx].neighbors == 0)
 				{
+					// 设置当前组件的目标框和置信度
 					comps[idx].rect = r1.rect;
 					comps[idx].classification.confidence = r1.classification.confidence;
+
+					// 拷贝部件到当前组件
 					memcpy(comps[idx].part, r1.part, sizeof(ccv_comp_t) * CCV_DPM_PART_MAX);
 				}
 
+				// 相应组件的邻居数+1
 				++comps[idx].neighbors;
 			}
 
@@ -3401,8 +3434,13 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 			for (i = 0; i < ncomp; i++)
 			{
 				int n = comps[i].neighbors;
+
+				// 如果当前组件的邻居数>=最小邻居数
 				if (n >= params.min_neighbors)
+				{
+					// 将当前组件压栈
 					ccv_array_push(seq2, comps + i);
+				}
 			}
 
 			// 过滤出包含小目标矩形的大目标矩形
@@ -3411,6 +3449,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 			{
 				ccv_root_comp_t* r2 = (ccv_root_comp_t*)ccv_array_get(seq2, i);
 				int distance = (int)(ccv_min(r2->rect.width, r2->rect.height) * 0.25 + 0.5);
+
 				for (j = 0; j < seq2->rnum; j++)
 				{
 					ccv_root_comp_t r1 = *(ccv_root_comp_t*)ccv_array_get(seq2, j);

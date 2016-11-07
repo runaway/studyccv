@@ -1154,6 +1154,15 @@ void ccv_filter_kernel(ccv_dense_matrix_t* x, ccv_filter_kernel_f func, void* da
 态规划和广义距离变换方法来高效搜索所有可能的目标配置，不约束每个部件的可能位置，
 我们使用此方法来匹配模型和图像。
 */
+
+/* feature, 
+   &part_feature[i], 
+   0, 
+   &dx[i], 0, 
+   &dy[i], 0, 
+   part->dx, part->dy, part->dxx, part->dyy, 
+   CCV_NEGATIVE | CCV_GSEDT);
+*/
 void 
 ccv_distance_transform(ccv_dense_matrix_t* a, 
 					   ccv_dense_matrix_t** b, 

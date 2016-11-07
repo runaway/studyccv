@@ -62,7 +62,7 @@ int main(int argc, char** argv)
 		if (argc == 4)
 			chdir(argv[3]);
 
-		if(r)
+		if (r)
 		{
 			size_t len = 1024;
 			char* file = (char*)malloc(len);
@@ -80,6 +80,7 @@ int main(int argc, char** argv)
 
 				// ¼ì²âÄ¿±ê
 				ccv_array_t* seq = ccv_dpm_detect_objects(image, &model, 1, ccv_dpm_default_params);
+
 				if (seq != 0)
 				{
 					for (i = 0; i < seq->rnum; i++)

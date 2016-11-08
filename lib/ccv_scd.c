@@ -1486,6 +1486,7 @@ ccv_array_t* ccv_scd_detect_objects(ccv_dense_matrix_t* a, ccv_scd_classifier_ca
 	ccv_array_t* result_seq = ccv_array_new(sizeof(ccv_comp_t), 64, 0);
 	for (k = 0; k < count; k++)
 	{
+		// 简化非极大值抑制，当交叉面积 / 最小面积 > 0.3时合并
 		/* simple non-maximum suppression, we merge when intersected area / min area > 0.3  */
 		if(params.min_neighbors == 0)
 		{

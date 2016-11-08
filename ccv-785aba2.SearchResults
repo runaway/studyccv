@@ -1,2 +1,21 @@
----- 大纪元 Matches (1 in 1 files) ----
-Ccv_convnet.c (lib):	// 按最大纪元数来循环
+---- CCV_IMPLEMENT_QSORT Matches (20 in 8 files) ----
+Ccv_bbf.c (lib):CCV_IMPLEMENT_QSORT(_ccv_sort_32f, float, less_than)
+Ccv_bbf.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_bbf_genetic_qsort, ccv_bbf_gene_t, less_than)
+Ccv_bbf.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_bbf_best_qsort, ccv_bbf_gene_t, less_than)
+Ccv_dpm.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_dpm_aspect_qsort, struct feature_node, less_than)
+Ccv_dpm.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_dpm_area_qsort, int, less_than)
+Ccv_dpm.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_dpm_score_qsort, double, less_than)
+Ccv_icf.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_icf_precomputed_ordering, ccv_icf_value_index_t, less_than)
+Ccv_icf.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_icf_threshold_rating, float, less_than)
+Ccv_internal.h (lib):#define CCV_IMPLEMENT_QSORT_EX(func_name, T, LT, swap_func, user_data_type)                     \
+Ccv_internal.h (lib):#define CCV_IMPLEMENT_QSORT(func_name, T, cmp) \
+Ccv_internal.h (lib):    CCV_IMPLEMENT_QSORT_EX(func_name, T, cmp, _ccv_qsort_default_swap, int)
+Ccv_mser.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_mscr_edge_qsort, ccv_mscr_edge_t, less_than)
+Ccv_scd.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_scd_value_index_sortby_value, ccv_scd_value_index_t, more_than)
+Ccv_scd.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_scd_value_index_sortby_index, ccv_scd_value_index_t, less_than)
+Ccv_swt.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_swt_stroke_qsort, ccv_swt_stroke_t, less_than)
+Ccv_swt.c (lib):static CCV_IMPLEMENT_QSORT(_ccv_sort_letters, ccv_letter_t*, less_than)
+Ccv_util.c (lib):static CCV_IMPLEMENT_QSORT_EX(_ccv_indice_uchar_sort, int, _ccv_indice_less_than, _ccv_swap_indice_and_uchar_data, unsigned char*);
+Ccv_util.c (lib):static CCV_IMPLEMENT_QSORT_EX(_ccv_indice_int_sort, int, _ccv_indice_less_than, _ccv_swap_indice_and_int_data, int*);
+Ccv_util.c (lib):static CCV_IMPLEMENT_QSORT_EX(_ccv_indice_float_sort, int, _ccv_indice_less_than, _ccv_swap_indice_and_float_data, float*);
+Ccv_util.c (lib):static CCV_IMPLEMENT_QSORT_EX(_ccv_indice_double_sort, int, _ccv_indice_less_than, _ccv_swap_indice_and_double_data, double*);

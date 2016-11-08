@@ -342,22 +342,34 @@ static void _ccv_resample_cubic_integer_only(ccv_dense_matrix_t* a, ccv_dense_ma
 #undef for_block
 }
 
-void ccv_resample(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int btype, int rows, int cols, int type)
+void 
+ccv_resample(ccv_dense_matrix_t* a, 
+			 ccv_dense_matrix_t** b, 
+			 int btype, 
+			 int rows, 
+			 int cols, 
+			 int type)
 {
 	assert(rows > 0 && cols > 0);
 	ccv_declare_derived_signature(sig, a->sig != 0, ccv_sign_with_format(64, "ccv_resample(%d,%d,%d)", rows, cols, type), a->sig, CCV_EOF_SIGN);
 	btype = (btype == 0) ? CCV_GET_DATA_TYPE(a->type) | CCV_GET_CHANNEL(a->type) : CCV_GET_DATA_TYPE(btype) | CCV_GET_CHANNEL(a->type);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, rows, cols, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(a->type), btype, sig);
 	ccv_object_return_if_cached(, db);
+
+	// 如果源矩阵和目标矩阵行列相等则直接拷贝
 	if (a->rows == db->rows && a->cols == db->cols)
 	{
 		if (CCV_GET_CHANNEL(a->type) == CCV_GET_CHANNEL(db->type) && CCV_GET_DATA_TYPE(db->type) == CCV_GET_DATA_TYPE(a->type))
 			memcpy(db->data.u8, a->data.u8, a->rows * a->step);
-		else {
+		else 
+		{
 			ccv_shift(a, (ccv_matrix_t**)&db, 0, 0, 0);
 		}
+		
 		return;
 	}
+
+	// 如果源矩阵的行列大于等于目标矩阵的行列
 	if ((type & CCV_INTER_AREA) && a->rows >= db->rows && a->cols >= db->cols)
 	{
 		/* using the fast alternative (fix point scale, 0x100 to avoid overflow) */
@@ -365,14 +377,20 @@ void ccv_resample(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int btype, int 
 			_ccv_resample_area_8u(a, db);
 		else
 			_ccv_resample_area(a, db);
-	} else if (type & CCV_INTER_CUBIC) {
+	} 
+	else if (type & CCV_INTER_CUBIC) 
+	{
 		if (CCV_GET_DATA_TYPE(db->type) == CCV_32F || CCV_GET_DATA_TYPE(db->type) == CCV_64F)
 			_ccv_resample_cubic_float_only(a, db);
 		else
 			_ccv_resample_cubic_integer_only(a, db);
-	} else if (type & CCV_INTER_LINEAR) {
+	} 
+	else if (type & CCV_INTER_LINEAR) 
+	{
 		assert(0 && "CCV_INTER_LINEAR is not implemented");
-	} else if (type & CCV_INTER_LINEAR) {
+	} 
+	else if (type & CCV_INTER_LINEAR) 
+	{
 		assert(0 && "CCV_INTER_LANCZOS is not implemented");
 	}
 }

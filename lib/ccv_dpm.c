@@ -498,47 +498,88 @@ typedef struct
 	ccv_dpm_part_classifier_t* part;
 } ccv_dpm_feature_vector_t;
 
-static void _ccv_dpm_collect_examples_randomly(gsl_rng* rng, ccv_array_t** negex, char** bgfiles, int bgnum, int negnum, int components, int* rows, int* cols, int grayscale)
+// rows cols根据前1/5正样本的最大长宽来计算DPM扫描块矩阵的行列
+static void 
+_ccv_dpm_collect_examples_randomly(gsl_rng* rng, 
+								   ccv_array_t** negex, 
+								   char** bgfiles, 
+								   int bgnum, 
+								   int negnum, 
+								   int components, 
+								   int* rows, 
+								   int* cols, 
+								   int grayscale)
 {
 	int i, j;
+
+	// 按组件数循环
 	for (i = 0; i < components; i++)
+	{
+		// 创建负样本矩阵 --negative-count 12000
 		negex[i] = ccv_array_new(sizeof(ccv_dpm_feature_vector_t), negnum, 0);
+	}
+	
 	int mrows = rows[0], mcols = cols[0];
+	
 	for (i = 1; i < components; i++)
 	{
 		mrows = ccv_max(mrows, rows[i]);
 		mcols = ccv_max(mcols, cols[i]);
 	}
+	
 	FLUSH(CCV_CLI_INFO, " - generating negative examples for all models : 0 / %d", negnum);
+
+	// 当负样本矩阵元素个数小于设定的负样本总数
 	while (negex[0]->rnum < negnum)
 	{
+		// 计算负样本总数和背景文件个数的比例p
 		double p = (double)negnum / (double)bgnum;
+
+		// 按背景文件个数循环
 		for (i = 0; i < bgnum; i++)
+		{
+			// 产生随机数rng
+			// Function 1.3：double gsl_rng_uniform (const gsl_rng *r)
+			// 产生一个在[0, 1)区间上的双精度随机数，这也是科学计算最常用。它产生的随机数包括0，但不包括1。
 			if (gsl_rng_uniform(rng) < p)
 			{
 				ccv_dense_matrix_t* image = 0;
+
+				// 从第i个背景文件中读取图像放到image
 				ccv_read(bgfiles[i], &image, (grayscale ? CCV_IO_GRAY : 0) | CCV_IO_ANY_FILE);
 				assert(image != 0);
+				
 				if (image->rows - mrows * CCV_DPM_WINDOW_SIZE < 0 ||
 					image->cols - mcols * CCV_DPM_WINDOW_SIZE < 0)
 				{
 					ccv_matrix_free(image);
 					continue;
 				}
+
+				// 产生均匀分布的随机数的函数
 				int y = gsl_rng_uniform_int(rng, image->rows - mrows * CCV_DPM_WINDOW_SIZE + 1);
 				int x = gsl_rng_uniform_int(rng, image->cols - mcols * CCV_DPM_WINDOW_SIZE + 1);
+
+				// 按组件数循环
 				for (j = 0; j < components; j++)
 				{
 					ccv_dense_matrix_t* slice = 0;
+
+					// 将该背景图像划分到slice
 					ccv_slice(image, (ccv_matrix_t**)&slice, 0, y + ((mrows - rows[j]) * CCV_DPM_WINDOW_SIZE + 1) / 2, x + ((mcols - cols[j]) * CCV_DPM_WINDOW_SIZE + 1) / 2, rows[j] * CCV_DPM_WINDOW_SIZE, cols[j] * CCV_DPM_WINDOW_SIZE);
+
 					assert(y + ((mrows - rows[j]) * CCV_DPM_WINDOW_SIZE + 1) / 2 >= 0 &&
 						   y + ((mrows - rows[j]) * CCV_DPM_WINDOW_SIZE + 1) / 2 + rows[j] * CCV_DPM_WINDOW_SIZE <= image->rows &&
 						   x + ((mcols - cols[j]) * CCV_DPM_WINDOW_SIZE + 1) / 2 >= 0 &&
 						   x + ((mcols - cols[j]) * CCV_DPM_WINDOW_SIZE + 1) / 2 + cols[j] * CCV_DPM_WINDOW_SIZE <= image->cols);
 					ccv_dense_matrix_t* hog = 0;
+
+					// 将该背景图像做HOG运算到hog
 					ccv_hog(slice, &hog, 0, 9, CCV_DPM_WINDOW_SIZE);
 					ccv_matrix_free(slice);
-					ccv_dpm_feature_vector_t vector = {
+					
+					ccv_dpm_feature_vector_t vector = 
+					{
 						.id = j,
 						.count = 0,
 						.part = 0,
@@ -546,63 +587,107 @@ static void _ccv_dpm_collect_examples_randomly(gsl_rng* rng, ccv_array_t** negex
 					ccv_make_matrix_mutable(hog);
 					assert(hog->rows == rows[j] && hog->cols == cols[j] && CCV_GET_CHANNEL(hog->type) == 31 && CCV_GET_DATA_TYPE(hog->type) == CCV_32F);
 					vector.root.w = hog;
+
+					// 将该背景HOG矩阵压栈到negex
 					ccv_array_push(negex[j], &vector);
 				}
+				
 				ccv_matrix_free(image);
 				FLUSH(CCV_CLI_INFO, " - generating negative examples for all models : %d / %d", negex[0]->rnum, negnum);
+
+				// 如果堆栈元素个数大于负样本总数则退出
 				if (negex[0]->rnum >= negnum)
 					break;
 			}
+		}
 	}
 }
 
-static ccv_array_t* _ccv_dpm_summon_examples_by_rectangle(char** posfiles, ccv_rect_t* bboxes, int posnum, int id, int rows, int cols, int grayscale)
+
+static ccv_array_t* 
+_ccv_dpm_summon_examples_by_rectangle(char** posfiles, 
+									  ccv_rect_t* bboxes, 
+									  int posnum, 
+									  int id, 
+									  int rows, 
+									  int cols, 
+									  int grayscale)
 {
 	int i;
 	FLUSH(CCV_CLI_INFO, " - generating positive examples for model %d : 0 / %d", id, posnum);
+
+	// 按正样本数目创建正样本向量矩阵posv
 	ccv_array_t* posv = ccv_array_new(sizeof(ccv_dpm_feature_vector_t), posnum, 0);
+
+	// 按正样本数目循环
 	for (i = 0; i < posnum; i++)
 	{
+		// 获取该正样本的包围框
 		ccv_rect_t bbox = bboxes[i];
+
+		// 计算该正样本经过平均长宽比缩放过后的列和行
 		int mcols = (int)(sqrtf(bbox.width * bbox.height * cols / (float)rows) + 0.5);
 		int mrows = (int)(sqrtf(bbox.width * bbox.height * rows / (float)cols) + 0.5);
+
+		// 设置该正样本经过平均长宽比变换过后的坐标和长宽
 		bbox.x = bbox.x + (bbox.width - mcols) / 2;
 		bbox.y = bbox.y + (bbox.height - mrows) / 2;
 		bbox.width = mcols;
 		bbox.height = mrows;
-		ccv_dpm_feature_vector_t vector = {
+
+		ccv_dpm_feature_vector_t vector = 
+		{
 			.id = id,
 			.count = 0,
 			.part = 0,
 		};
+
+		// 分辨率太小而不能用
 		// resolution is too low to be useful
 		if (mcols * 2 < cols * CCV_DPM_WINDOW_SIZE || mrows * 2 < rows * CCV_DPM_WINDOW_SIZE)
 		{
 			vector.root.w = 0;
+
+			// 如果分辨率太小则不做HOG直接压栈
 			ccv_array_push(posv, &vector);
+
 			continue;
 		}
+		
 		ccv_dense_matrix_t* image = 0;
+
+		// 将该正样本文件数据读到image里
 		ccv_read(posfiles[i], &image, (grayscale ? CCV_IO_GRAY : 0) | CCV_IO_ANY_FILE);
 		assert(image != 0);
 		ccv_dense_matrix_t* up2x = 0;
+
+		// 将该正样本图像上采样到up2x
 		ccv_sample_up(image, &up2x, 0, 0, 0);
 		ccv_matrix_free(image);
 		ccv_dense_matrix_t* slice = 0;
+
+		// 将该正样本上采样图像划分到slice
 		ccv_slice(up2x, (ccv_matrix_t**)&slice, 0, bbox.y * 2, bbox.x * 2, bbox.height * 2, bbox.width * 2);
 		ccv_matrix_free(up2x);
 		ccv_dense_matrix_t* resize = 0;
+
+		// 将该正样本划分resize到resize
 		ccv_resample(slice, &resize, 0, rows * CCV_DPM_WINDOW_SIZE, cols * CCV_DPM_WINDOW_SIZE, CCV_INTER_AREA);
 		ccv_matrix_free(slice);
 		ccv_dense_matrix_t* hog = 0;
+
+		// 将该正样本尺度归一化后的图像做HOG运算
 		ccv_hog(resize, &hog, 0, 9, CCV_DPM_WINDOW_SIZE);
 		ccv_matrix_free(resize);
 		ccv_make_matrix_mutable(hog);
 		assert(hog->rows == rows && hog->cols == cols && CCV_GET_CHANNEL(hog->type) == 31 && CCV_GET_DATA_TYPE(hog->type) == CCV_32F);
 		vector.root.w = hog;
+
+		// 将HOG矩阵压栈到posv
 		ccv_array_push(posv, &vector);
 		FLUSH(CCV_CLI_INFO, " - generating positive examples for model %d : %d / %d", id, i + 1, posnum);
 	}
+
 	return posv;
 }
 
@@ -2460,6 +2545,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 	// 创建DPM模型
 	ccv_dpm_mixture_model_t* model = (ccv_dpm_mixture_model_t*)ccmalloc(sizeof(ccv_dpm_mixture_model_t));
 	memset(model, 0, sizeof(ccv_dpm_mixture_model_t));
+
+	// 按正样本数目定义特征节点指针
 	struct feature_node* fn = (struct feature_node*)ccmalloc(sizeof(struct feature_node) * posnum);
 
 	for (i = 0; i < posnum; i++)
@@ -2474,6 +2561,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 	char initcheckpoint[512];
 	sprintf(checkpoint, "%s/model", dir);
 	sprintf(initcheckpoint, "%s/init.model", dir);
+
+	// 按节点的value排序
 	_ccv_dpm_aspect_qsort(fn, posnum, 0);
 	double mean = 0;
 
@@ -2482,7 +2571,7 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		mean += fn[i].value;
 	mean /= posnum;
 
-	// 计算所有正样本的均方差variance
+	// 计算所有正样本节点长宽比的均方差variance
 	double variance = 0;
 	for (i = 0; i < posnum; i++)
 		variance += (fn[i].value - mean) * (fn[i].value - mean);
@@ -2490,24 +2579,27 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 	
 	PRINT(CCV_CLI_INFO, "global mean: %lf, & variance: %lf\ninterclass mean(variance):", mean, variance);
 
-	// 按组件数量分配内存
+	// 定义每个组件对应的正样本个数数组mnum,按组件数量分配内存mnum
 	int* mnum = (int*)alloca(sizeof(int) * params.components);
 	int outnum = posnum, innum = 0;
 
+	// 按组件数量循环 --model-component 1 
 	for (i = 0; i < params.components; i++)
 	{
+		// 按components个数把正样本分成components部分
 		mnum[i] = (int)((double)outnum / (double)(params.components - i) + 0.5);
 		double mean = 0;
-		
+
+		// 计算该组件对应的部分正样本节点长宽比的平均值mean
 		for (j = innum; j < innum + mnum[i]; j++)
 			mean += fn[j].value;
 		mean /= mnum[i];
 		double variance = 0;
 
+		// 计算该组件对应的部分正样本节点长宽比的均方差variance
 		for (j = innum; j < innum + mnum[i]; j++)
 			variance += (fn[j].value - mean) * (fn[j].value - mean);
 		variance /= mnum[i];
-
 
 		PRINT(CCV_CLI_INFO, " %lf(%lf)", mean, variance);
 		outnum -= mnum[i];
@@ -2520,8 +2612,11 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 	// 计算各个正样本包围盒的面积
 	for (i = 0; i < posnum; i++)
 		areas[i] = bboxes[i].width * bboxes[i].height;
+
+	// ?按升序排列面积
 	_ccv_dpm_area_qsort(areas, posnum, 0);
 
+	// 将前1/5正样本的最大面积饱和到min_area~max_area 3000~5000
 	// 即使目标只有1/4的尺寸，也可以检测到它们(从2x图像开始检测)
 	// so even the object is 1/4 in size, we can still detect them (in detection phase, we start at 2x image)
 	int area = ccv_clamp(areas[(int)(posnum * 0.2 + 0.5)], params.min_area, params.max_area);
@@ -2548,16 +2643,21 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 	for (i = 0; i < params.components; i++)
 	{
 		double aspect = 0;
-		
+
+		// 在一个组件内的正样本循环
 		for (j = innum; j < innum + mnum[i]; j++)
 		{
 			aspect += fn[j].value;
 
-			// 设置正样本标签
+			// 设置该组件对应的正样本标签为组件号i
 			poslabels[fn[j].index] = i; // setup labels
 		}
 		
+		// 计算该组件对应的正样本的平均长宽比aspect
 		aspect /= mnum[i];
+
+		// 根据前1/5正样本的最大长宽来计算DPM扫描块矩阵的行列
+		// area前1/5正样本的最大面积，height == sqrtf(area / aspect)
 		cols[i] = ccv_max((int)(sqrtf(area / aspect) * aspect / CCV_DPM_WINDOW_SIZE + 0.5), 1);
 		rows[i] = ccv_max((int)(sqrtf(area / aspect) / CCV_DPM_WINDOW_SIZE + 0.5), 1);
 
@@ -2566,6 +2666,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		else
 			PRINT(CCV_CLI_INFO, "%dx%d\n", cols[i], rows[i]);
 		fflush(stdout);
+
+		// 计算总的输入正样本数innum
 		innum += mnum[i];
 	}
 	
@@ -2588,7 +2690,15 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		// Data 1: Positive Examples P = {(I1, B1), ..., (In, Bn)} 
 		for (i = 0; i < params.components; i++)
 		{
-			posex[i] = _ccv_dpm_summon_examples_by_rectangle(posfiles, bboxes, posnum, i, rows[i], cols[i], params.grayscale);
+			// 根据矩形包围框召集正样本
+			// posnum从上层传入的实际读到的正样本文件数
+			posex[i] = _ccv_dpm_summon_examples_by_rectangle(posfiles, 
+															 bboxes, 
+															 posnum, 
+															 i, 
+															 rows[i], 
+															 cols[i], 
+															 params.grayscale);
 		}
 		
 		PRINT(CCV_CLI_INFO, "\n");
@@ -2596,7 +2706,16 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		ccv_array_t** negex = (ccv_array_t**)alloca(sizeof(ccv_array_t*) * params.components);
 
 		// Data 2: Negitive Images N = {J1, ... Jm} 
-		_ccv_dpm_collect_examples_randomly(rng, negex, bgfiles, bgnum, negnum, params.components, rows, cols, params.grayscale);
+		_ccv_dpm_collect_examples_randomly(rng, 
+										   negex, 
+										   bgfiles, 
+										   bgnum, 
+										   negnum, 
+										   params.components, 
+										   rows, 
+										   cols, 
+										   params.grayscale);
+		
 		PRINT(CCV_CLI_INFO, "\n");
 		int* neglabels = (int*)ccmalloc(sizeof(int) * negex[0]->rnum);
 
@@ -2944,7 +3063,14 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 
 							// 12: Beta := gradient-descent(Fp)
 							if (score <= 1)
-								_ccv_dpm_stochastic_gradient_descent(_model, posv[k], 1, alpha * pos_weight, regz_rate, params.symmetric);
+							{
+								_ccv_dpm_stochastic_gradient_descent(_model, 
+																	 posv[k], 
+																	 1, 
+																	 alpha * pos_weight, 
+																	 regz_rate, 
+																	 params.symmetric);
+							}
 						} 
 						else // 如果是负样本
 						{
@@ -2963,7 +3089,14 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 
 							// 12: Beta := gradient-descent(Fn)
 							if (score >= -1)
-								_ccv_dpm_stochastic_gradient_descent(_model, v, -1, alpha * neg_weight, regz_rate, params.symmetric);
+							{
+								_ccv_dpm_stochastic_gradient_descent(_model, 
+																	 v, 
+																	 -1, 
+																	 alpha * neg_weight, 
+																	 regz_rate, 
+																	 params.symmetric);
+							}
 						}
 
 						// 已计算的样本数+1
@@ -3403,6 +3536,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a,
 			ccv_root_comp_t* comps = (ccv_root_comp_t*)ccmalloc((ncomp + 1) * sizeof(ccv_root_comp_t));
 			memset(comps, 0, (ncomp + 1) * sizeof(ccv_root_comp_t));
 
+			// ?简化非极大值抑制
 			// 邻居数目计数
 			// count number of neighbors
 			for (i = 0; i < seq->rnum; i++)

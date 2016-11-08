@@ -36,7 +36,8 @@ static void exit_with_help(void)
 
 int main(int argc, char** argv)
 {
-	static struct option dpm_options[] = {
+	static struct option dpm_options[] = 
+	{
 		/* help */
 		{"help", 0, 0, 0},
 		/* required parameters */
@@ -66,11 +67,20 @@ int main(int argc, char** argv)
 	};
 	char* positive_list = 0;
 	char* background_list = 0;
+
+	// 定义工作目录，由输入参数指定
 	char* working_dir = 0;
 	char* base_dir = 0;
+
+	// 定义应该从背景文件中收集的负样本个数，由输入参数指定
 	int negative_count = 0;
+
+	// 初始化DPM检测器参数
 	ccv_dpm_param_t detector = { .interval = 8, .min_neighbors = 0, .flags = 0, .threshold = 0.0 };
-	ccv_dpm_new_param_t params = {
+
+	// 初始化DPM参数
+	ccv_dpm_new_param_t params = 
+	{
 		.components = 0,
 		.detector = detector,
 		.parts = 0,
@@ -93,7 +103,8 @@ int main(int argc, char** argv)
 	};
 	
 	int i, k;
-	
+
+	// ./dpmcreate --positive-list pedestrian.samples --background-list no-pedestrian.samples --negative-count 12000 --model-component 1 --model-part 8 --working-dir <Working directory> --base-dir <INRIA dataset>/Train/pos/
 	while (getopt_long_only(argc, argv, "", dpm_options, &k) != -1)
 	{
 		switch (k)
@@ -178,11 +189,14 @@ int main(int argc, char** argv)
 	assert(r1 && "background-list doesn't exists");
 	char* file = (char*)malloc(1024);
 	int x, y, width, height;
+
+	// 设置正样本集初始容量32
 	int capacity = 32, size = 0;
 	char** posfiles = (char**)ccmalloc(sizeof(char*) * capacity);
 	ccv_rect_t* bboxes = (ccv_rect_t*)ccmalloc(sizeof(ccv_rect_t) * capacity);
 	int dirlen = (base_dir != 0) ? strlen(base_dir) + 1 : 0;
-	
+
+	// 从正样本列表文件读取一行
 	while (fscanf(r0, "%s %d %d %d %d", file, &x, &y, &width, &height) != EOF)
 	{
 		posfiles[size] = (char*)ccmalloc(1024);
@@ -194,16 +208,21 @@ int main(int argc, char** argv)
 		}
 		
 		strncpy(posfiles[size] + dirlen, file, 1024 - dirlen);
+
+		// 从输入参数获取包围框
 		bboxes[size] = ccv_rect(x, y, width, height);
 		++size;
-		
+
+		// 如果正样本数超过初始容量32
 		if (size >= capacity)
 		{
+			// 正样本集容量加倍
 			capacity *= 2;
 			posfiles = (char**)ccrealloc(posfiles, sizeof(char*) * capacity);
 			bboxes = (ccv_rect_t*)ccrealloc(bboxes, sizeof(ccv_rect_t) * capacity);
 		}
 	}
+	
 	int posnum = size;
 	fclose(r0);
 	size_t len = 1024;
@@ -211,6 +230,7 @@ int main(int argc, char** argv)
 	capacity = 32, size = 0;
 	char** bgfiles = (char**)ccmalloc(sizeof(char*) * capacity);
 
+	// 从背景列表文件读取一行
 	while ((read = getline(&file, &len, r1)) != -1)
 	{
 		while(read > 1 && isspace(file[read - 1]))
@@ -225,6 +245,7 @@ int main(int argc, char** argv)
 			bgfiles[size][dirlen - 1] = '/';
 		}
 
+		// 把从列表中读到的文件名拷贝到背景文件名数组中
 		strncpy(bgfiles[size] + dirlen, file, 1024 - dirlen);
 		++size;
 
@@ -234,12 +255,22 @@ int main(int argc, char** argv)
 			bgfiles = (char**)ccrealloc(bgfiles, sizeof(char*) * capacity);
 		}
 	}
+	
 	fclose(r1);
+
+	// 定义背景文件个数
 	int bgnum = size;
 	free(file);
 
 	// 训练DPM混合模型
-	ccv_dpm_mixture_model_new(posfiles, bboxes, posnum, bgfiles, bgnum, negative_count, working_dir, params);
+	ccv_dpm_mixture_model_new(posfiles, 
+							  bboxes, 
+							  posnum, 
+							  bgfiles, 
+							  bgnum, 
+							  negative_count, 
+							  working_dir, 
+							  params);
 
 	for (i = 0; i < posnum; i++)
 		free(posfiles[i]);

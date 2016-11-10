@@ -251,7 +251,8 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 		int minx = pww, maxx = part_feature[i]->cols - part->w->cols + pww;
 
 		// 从root_feature里获取rwh行0列的数据指针到f_ptr
-		float* f_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
+		float* f_ptr = 
+			(float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
 
 		/* DPM的检测过程基于窗口扫描方法，对每个窗口计算如下分数： 
 		窗口的分数 = 该位置根滤波器的分数 + ∑[i~m]max(第i个部件分数 - 第i个部件偏差)
@@ -274,7 +275,8 @@ static void _ccv_dpm_compute_score(ccv_dpm_root_classifier_t* root_classifier,
 				f_ptr[x] -= 
 					ccv_get_dense_matrix_cell_value_by(CCV_32F | CCV_C1, part_feature[i], iy, ix, 0);
 			}
-			
+
+			// f_ptr指向根特征的下一行
 			f_ptr += root_feature->cols;
 		}
 	}
@@ -1163,16 +1165,25 @@ _ccv_dpm_initialize_feature_vector_on_pattern(ccv_dpm_feature_vector_t* vector,
 {
 	int i;
 	vector->id = id;
+
+	// 设置部件个数
 	vector->count = root->count;
-	vector->part = (ccv_dpm_part_classifier_t*)ccmalloc(sizeof(ccv_dpm_part_classifier_t) * root->count);
-	vector->root.w = ccv_dense_matrix_new(root->root.w->rows, root->root.w->cols, CCV_32F | 31, 0, 0);
+	vector->part = 
+		(ccv_dpm_part_classifier_t*)ccmalloc(sizeof(ccv_dpm_part_classifier_t) * root->count);
+	vector->root.w = 
+		ccv_dense_matrix_new(root->root.w->rows, root->root.w->cols, CCV_32F | 31, 0, 0);
 
 	for (i = 0; i < vector->count; i++)
 	{
 		vector->part[i].x = root->part[i].x;
 		vector->part[i].y = root->part[i].y;
 		vector->part[i].z = root->part[i].z;
-		vector->part[i].w = ccv_dense_matrix_new(root->part[i].w->rows, root->part[i].w->cols, CCV_32F | 31, 0, 0);
+		vector->part[i].w = 
+			ccv_dense_matrix_new(root->part[i].w->rows, 
+								 root->part[i].w->cols, 
+								 CCV_32F | 31, 
+								 0, 
+								 0);
 	}
 }
 
@@ -1245,31 +1256,48 @@ _ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v,
 								float score, 
 								int x, 
 								int y, 
-								ccv_dense_matrix_t* pyr, 
-								ccv_dense_matrix_t* detail, 
+								ccv_dense_matrix_t* pyr, // pyr[j], 
+								ccv_dense_matrix_t* detail, // pyr[j - next], 
 								ccv_dense_matrix_t** dx, 
 								ccv_dense_matrix_t** dy)
 {
 	v->score = score;
 	v->x = x;
 	v->y = y;
+
+	// 将特征向量v的根w置零
 	ccv_zero(v->root.w);
+
+	// 计算特征向量v的根w行列的一半
 	int rwh = (v->root.w->rows - 1) / 2, rww = (v->root.w->cols - 1) / 2;
 	int i, ix, iy, ch = CCV_GET_CHANNEL(v->root.w->type);
+
+	// 获取金字塔的y - rwh, x - rww元素指针
 	float* h_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | ch, pyr, y - rwh, x - rww, 0);
+
+	// 定义指向特征向量v的根w的数据指针w_ptr
 	float* w_ptr = v->root.w->data.f32;
 
 	for (iy = 0; iy < v->root.w->rows; iy++)
 	{
+		// 拷贝金字塔的一行到特征向量v的根w
 		memcpy(w_ptr, h_ptr, v->root.w->cols * ch * sizeof(float));
+
+		// h_ptr指向金字塔的下一行
 		h_ptr += pyr->cols * ch;
+
+		// w_ptr指向特征向量v的根w的下一行
 		w_ptr += v->root.w->cols * ch;
 	}
 	
 	for (i = 0; i < v->count; i++)
 	{
 		ccv_dpm_part_classifier_t* part = v->part + i;
+
+		// 计算部件宽高的一半
 		int pww = (part->w->cols - 1) / 2, pwh = (part->w->rows - 1) / 2;
+
+		// 计算部件相对于根的偏移
 		int offy = part->y + pwh - rwh * 2;
 		int offx = part->x + pww - rww * 2;
 		iy = ccv_clamp(y * 2 + offy, pwh, detail->rows - part->w->rows + pwh);
@@ -1309,6 +1337,7 @@ _ccv_dpm_collect_feature_vector(ccv_dpm_feature_vector_t* v,
 
 		for (iy = start_y; iy < end_y; iy++)
 		{
+			// 拷贝2x金字塔的一行到特征向量v的部件w
 			memcpy(w_ptr, h_ptr, (end_x - start_x) * ch * sizeof(float));
 			h_ptr += detail->cols * ch;
 			w_ptr += part->w->cols * ch;
@@ -1349,7 +1378,9 @@ _ccv_dpm_collect_best(ccv_dense_matrix_t* image,
 		// 按尺度空间搜索
 		for (j = next; j < scale_upto + next * 2; j++)
 		{
-			ccv_size_t size = ccv_size((int)(root_classifier->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), (int)(root_classifier->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y + 0.5));
+			ccv_size_t size = 
+				ccv_size((int)(root_classifier->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), 
+						 (int)(root_classifier->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y + 0.5));
 
 			if (ccv_min((double)(size.width * size.height), (double)(bbox.width * bbox.height)) / 
 				ccv_max((double)(bbox.width * bbox.height), (double)(size.width * size.height)) < overlap)
@@ -1363,26 +1394,53 @@ _ccv_dpm_collect_best(ccv_dense_matrix_t* image,
 			ccv_dense_matrix_t* part_feature[CCV_DPM_PART_MAX];
 			ccv_dense_matrix_t* dx[CCV_DPM_PART_MAX];
 			ccv_dense_matrix_t* dy[CCV_DPM_PART_MAX];
-			_ccv_dpm_compute_score(root_classifier, pyr[j], pyr[j - next], &root_feature, part_feature, dx, dy);
-			int rwh = (root_classifier->root.w->rows - 1) / 2, rww = (root_classifier->root.w->cols - 1) / 2;
-			int rwh_1 = root_classifier->root.w->rows / 2, rww_1 = root_classifier->root.w->cols / 2;
-			float* f_ptr = (float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, root_feature, rwh, 0, 0);
 
+			// 计算根w部件w在两层金字塔的响应分数输出到root_feature,part_feature,dx,dy里面
+			_ccv_dpm_compute_score(root_classifier, 
+								   pyr[j], 
+								   pyr[j - next], 
+								   &root_feature, 
+								   part_feature, 
+								   dx, 
+								   dy);
+
+			// 定义根分类器根w行列的一半
+			int rwh = (root_classifier->root.w->rows - 1) / 2, 
+				rww = (root_classifier->root.w->cols - 1) / 2;
+			int rwh_1 = root_classifier->root.w->rows / 2, 
+				rww_1 = root_classifier->root.w->cols / 2;
+
+			// 获取根特征矩阵的rwh行0列的元素指针
+			float* f_ptr = 
+				(float*)ccv_get_dense_matrix_cell_by(CCV_32F | CCV_C1, 
+													 root_feature, 
+													 rwh, 
+													 0, 
+													 0);
+
+			// 找到最好的响应值best和对应的特征向量v
 			for (y = rwh; y < root_feature->rows - rwh_1; y++)
 			{
 				for (x = rww; x < root_feature->cols - rww_1; x++)
 				{
-					ccv_rect_t rect = ccv_rect((int)((x - rww) * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), (int)((y - rwh) * CCV_DPM_WINDOW_SIZE * scale_y + 0.5), (int)(root_classifier->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), (int)(root_classifier->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y + 0.5));
+					ccv_rect_t rect = 
+						ccv_rect((int)((x - rww) * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), 
+								 (int)((y - rwh) * CCV_DPM_WINDOW_SIZE * scale_y + 0.5), 
+								 (int)(root_classifier->root.w->cols * CCV_DPM_WINDOW_SIZE * scale_x + 0.5), 
+								 (int)(root_classifier->root.w->rows * CCV_DPM_WINDOW_SIZE * scale_y + 0.5));
 
-					if ((double)(ccv_max(0, ccv_min(rect.x + rect.width, bbox.x + bbox.width) - ccv_max(rect.x, bbox.x)) *
-								 ccv_max(0, ccv_min(rect.y + rect.height, bbox.y + bbox.height) - ccv_max(rect.y, bbox.y))) /
-						(double)ccv_max(rect.width * rect.height, bbox.width * bbox.height) >= overlap && f_ptr[x] > best)
+					if ((double)(ccv_max(0, ccv_min(rect.x + rect.width, bbox.x + bbox.width) - ccv_max(rect.x, bbox.x)) 
+					   *    	 ccv_max(0, ccv_min(rect.y + rect.height, bbox.y + bbox.height) - ccv_max(rect.y, bbox.y))) 
+					   / (double)ccv_max(rect.width * rect.height, bbox.width * bbox.height) >= overlap 
+					 && f_ptr[x] > best)
 					{
 						// 初始化v
 						// initialize v
 						if (v == 0)
 						{
 							v = (ccv_dpm_feature_vector_t*)ccmalloc(sizeof(ccv_dpm_feature_vector_t));
+
+							// 按模式初始化特征向量v
 							_ccv_dpm_initialize_feature_vector_on_pattern(v, root_classifier, i);
 						}
 
@@ -1394,8 +1452,16 @@ _ccv_dpm_collect_best(ccv_dense_matrix_t* image,
 							_ccv_dpm_initialize_feature_vector_on_pattern(v, root_classifier, i);
 						}
 
+						// 按输入的根坐标x,y和部件坐标dx,dy从两层金字塔拷贝数据到v里面
 						// 收集特征向量
-						_ccv_dpm_collect_feature_vector(v, f_ptr[x] + root_classifier->beta, x, y, pyr[j], pyr[j - next], dx, dy);
+						_ccv_dpm_collect_feature_vector(v, 
+														f_ptr[x] + root_classifier->beta, // score
+														x, 
+														y, 
+														pyr[j], 
+														pyr[j - next], 
+														dx, 
+														dy);
 						v->scale_x = scale_x;
 						v->scale_y = scale_y;
 						best = f_ptr[x];
@@ -1584,6 +1650,22 @@ _ccv_dpm_collect_from_background(ccv_array_t* av,
 }
 
 /*
+7 后处理
+7.1 包围盒预测
+	目标检测系统想要得到的输出并不是完全统一的。PASCAL挑战赛的目的是预测目标的
+包围盒(BoundingBox)。我们之前的论文[17]是根据根滤波器的位置产生包围盒。但我们的
+模型还能定位每个部件滤波器的位置。此外，部件滤波器的定位精度要大于根滤波器。很
+明显我们最初的方法忽略了使用多尺度可变形部件模型所获得的潜在有价值信息。
+    在当前的系统中，我们使用目标假设的完全配置，z = (p0,..., pn)，来预测目标的
+包围盒。这是通过一个将特征向量g(z)映射为包围盒左上角点(x1,y1)和右下角点(x2,y2)
+的函数来实现的。对于一个含n个部件的模型，g(z)是一个2n+3维的向量，包含以像素为单
+位的根滤波器宽度(指出尺度信息)和每个滤波器在图像左上角点的位置坐标。
+    PASCAL训练集中的每个目标都用包围盒进行了标注。训练完模型后，用检测器在每个
+实例上的输出根据g(z)训练4个分别预测x1,y1,x2,y2的线性函数，这是通过线性最小二乘
+回归来训练的，对于混合模型中的每个组件是独立的。
+    图7是汽车检测中包围盒预测的一个例子。这种简单方法在PASCAL数据集的某些类别上
+可以产生较小但值得注意的性能提升(见第8节)。
+
 typedef struct   
 {  
   size_t size1;//矩阵的行数  
@@ -1611,10 +1693,13 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 											 int posnum, 
 											 ccv_dpm_new_param_t params)
 {
+	// 定义已处理的正样本计数c
 	int i, j, k, c;
 
 	// 给正样本向量分配空间
 	ccv_dpm_feature_vector_t** posv = (ccv_dpm_feature_vector_t**)ccmalloc(sizeof(ccv_dpm_feature_vector_t*) * posnum);
+
+	// 定义每个模型所对应的样本计数
 	int* num_per_model = (int*)alloca(sizeof(int) * model->count);
 	memset(num_per_model, 0, sizeof(int) * model->count);
 	FLUSH(CCV_CLI_INFO, " - collecting responses from positive examples : 0%%");
@@ -1632,7 +1717,10 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 		posv[i] = _ccv_dpm_collect_best(image, model, bboxes[i], params.include_overlap, params.detector);
 
 		if (posv[i])
+		{
+			// 每个模型所对应的样本计数+1
 			++num_per_model[posv[i]->id];
+		}
 		
 		ccv_matrix_free(image);
 	}
@@ -1646,11 +1734,15 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 		// 获取当前根分类器
 		ccv_dpm_root_classifier_t* root_classifier = model->root + i;
 
-		// 申请矩阵空间
+		// 分配坐标矩阵空间 n1 * n2
 		gsl_matrix* X = gsl_matrix_alloc(num_per_model[i], root_classifier->count * 2 + 1);
 		gsl_vector* y[3];
+
+		// 分配包围盒中心点归一化后的坐标矩阵
 		y[0] = gsl_vector_alloc(num_per_model[i]);
 		y[1] = gsl_vector_alloc(num_per_model[i]);
+
+		// 分配归一化后的包围盒面积矩阵
 		y[2] = gsl_vector_alloc(num_per_model[i]);
 		gsl_vector* z = gsl_vector_alloc(root_classifier->count * 2 + 1);
 		gsl_matrix* cov = gsl_matrix_alloc(root_classifier->count * 2 + 1, root_classifier->count * 2 + 1);;
@@ -1658,12 +1750,12 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 		
 		for (j = 0; j < posnum; j++)
 		{
-			// 获取当前正样本向量	
+			// 获取当前正样本向量v	
 			ccv_dpm_feature_vector_t* v = posv[j];
 
 			if (v && v->id == i)
 			{
-				// 访问矩阵中的第i+1行，j+1列的元素
+				// 设置第i个模型对应的坐标矩阵中的第i+1行，j+1列的元素为1.0
 				gsl_matrix_set(X, c, 0, 1.0);
 
 				for (k = 0; k < v->count; k++)
@@ -2914,13 +3006,14 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		// 如果第i个组件的部件数>0
 		if (model->root[i].count > 0)
 		{
+			// 如果前面已经初始化了部件分类器则不再初始化
 			PRINT(CCV_CLI_INFO, " - skipping part filters initialization for model %d(%d)\n", i + 1, params.components);
 		} 
 		else // 如果第i个组件的部件数<=0
 		{
 			PRINT(CCV_CLI_INFO, " - initializing part filters for model %d(%d)\n", i + 1, params.components);
 
-			// 初始化部件滤波器
+			// 初始化部件分类器
 			_ccv_dpm_initialize_part_classifiers(model->root + i, 
 												 params.parts, // --model-part 8
 												 params.symmetric);
@@ -3029,12 +3122,12 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 		params.detector.threshold = 0;
 
 		// 数据挖掘主循环
-		/* 现在说下Data-minig。作者为什么不直接优化，还搞个Data-minig干嘛呢？因
+		/* 现在说下Data-mining。作者为什么不直接优化，还搞个Data-minig干嘛呢?因
 		为，负样本数目巨大，Version3中用到的总样本数为2^28，其中Pos样本数目占的
 		比例特别低，负样本太多，直接导致优化过程很慢，因为很多负样本远离分界面
-		对于优化几乎没有帮助。Data-minig的作用就是去掉那些对优化作用很小的
+		对于优化几乎没有帮助。Data-mining的作用就是去掉那些对优化作用很小的
 		Easy-examples保留靠近分界面的Hard-examples。分别对应13和10。*/
-		// 数据挖掘:挖掘难例需要多少数据挖掘过程(默认到50)
+		// 数据挖掘:挖掘难例需要多少数据挖掘过程(默认到50) .data_minings = 50
 		// data-minings : how many data mining procedures are needed for discovering hard examples [DEFAULT TO 50]
 		// 7: for data_mining := 1 to num_mining do
 		for (; d < params.data_minings; d++)
@@ -3133,7 +3226,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 
 			// 12就对应了MI-SVM的第二步:优化SVM模型
 			// 直接用了梯度下降法，求解最优模型β
-			// 12: Beta := gradient-descent(Fp union Fn)
+			// 12: Beta := gradient-descent(Fp union Fn) 
+			// iterations 500 1000 50000
 			for (t = 0; t < params.iterations; t++)
 			{
 				// model->count == params.components
@@ -3141,8 +3235,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 				{
 					// 如果没有足够的正负样本，则终止本次循环	
 					// if don't have enough negnum or posnum, aborting
-					if (negvnum[p] <= ccv_max(params.negative_cache_size / (model->count * 3), ccv_max(REGQ, MINI_BATCH)) ||
-						posvnum[p] <= ccv_max(REGQ, MINI_BATCH))
+					if (negvnum[p] <= ccv_max(params.negative_cache_size / (model->count * 3), ccv_max(REGQ, MINI_BATCH)) 
+					 ||	posvnum[p] <= ccv_max(REGQ, MINI_BATCH))
 					{
 						continue;
 					}
@@ -3154,13 +3248,15 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 					
 					for (i = 0; i < posnum + negv->rnum; i++)
 						order[i] = i;
-					
+
+					// 把order打乱成随机序列
 					gsl_ran_shuffle(rng, order, posnum + negv->rnum, sizeof(int));
 					int l = 0;
 
 					// 按样本总数循环
 					for (i = 0; i < posnum + negv->rnum; i++)
 					{
+						// 随机取一个样本序号
 						k = order[i];
 
 						// 如果是正样本
@@ -3254,16 +3350,19 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 
 				// 计算正样本的加权铰链损失loss
 				for (i = 0; i < posnum; i++)
+				{
 					if (posv[i] != 0)
 					{
 						double score = _ccv_dpm_vector_score(model, posv[i]);
 						assert(!isnan(score));
 						double hinge_loss = ccv_max(0, 1.0 - score);
 						positive_loss += hinge_loss;
-						double pos_weight = sqrt((double)negvnum[posv[i]->id] / posvnum[posv[i]->id] * params.balance); // positive weight
+						double pos_weight = 
+							sqrt((double)negvnum[posv[i]->id] / posvnum[posv[i]->id] * params.balance); // positive weight
 						loss += pos_weight * hinge_loss;
 						++posvn;
 					}
+				}
 
 				// 计算负样本的加权铰链损失loss
 				for (i = 0; i < negv->rnum; i++)
@@ -3273,7 +3372,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 					assert(!isnan(score));
 					double hinge_loss = ccv_max(0, 1.0 + score);
 					negative_loss += hinge_loss;
-					double neg_weight = sqrt((double)posvnum[v->id] / negvnum[v->id] / params.balance); // negative weight
+					double neg_weight = 
+						sqrt((double)posvnum[v->id] / negvnum[v->id] / params.balance); // negative weight
 					loss += neg_weight * hinge_loss;
 				}
 
@@ -3318,7 +3418,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 			PRINT(CCV_CLI_INFO, "\n - data mining %d takes %.2lf seconds at loss %.5lf, %d more to go (%d of %d)\n", d + 1, (double)(_ccv_dpm_time_measure() - elapsed_time) / 1000000.0, loss, params.data_minings - d - 1, c + 1, params.relabels);
 			j = 0;
 			double* scores = (double*)ccmalloc(posnum * sizeof(double));
-			
+
+			// 计算所有正样本的得分，放到scores
 			for (i = 0; i < posnum; i++)
 			{
 				if (posv[i])
@@ -3332,12 +3433,13 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 				}
 			}
 
-			// 排序分数	
+			// 排序分数完了就释放，似乎没有用上	
 			_ccv_dpm_score_qsort(scores, j, 0);
 			ccfree(scores);
 			double breakdown;
 			PRINT(CCV_CLI_INFO, " - threshold breakdown by percentile");
 
+			// 百分率分解，默认阈值0.05
 			for (breakdown = params.percentile_breakdown; 
 				 breakdown < 1.0; 
 				 breakdown += params.percentile_breakdown)
@@ -3378,7 +3480,8 @@ void ccv_dpm_mixture_model_new(char** posfiles,
 
 	// 用线性回归预测根矩形
 	PRINT(CCV_CLI_INFO, "root rectangle prediction with linear regression\n");
-	
+
+	// 后处理 包围盒预测
 	// 预测新的x, y和scale
 	// Result: New model Beta
 	_ccv_dpm_initialize_root_rectangle_estimator(model, posfiles, bboxes, posnum, params);

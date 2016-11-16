@@ -2143,20 +2143,27 @@ enum {
 	CCV_CATEGORIZED_FILE = 0x02,
 };
 
-typedef struct {
+typedef struct 
+{
 	int c; // class / category label
 	int type;
-	union {
+
+	union 
+	{
 		ccv_dense_matrix_t* matrix;
 		ccv_file_info_t file;
 	};
 } ccv_categorized_t;
 
-inline static ccv_categorized_t ccv_categorized(int c, ccv_dense_matrix_t* matrix, ccv_file_info_t* file)
+inline static ccv_categorized_t 
+ccv_categorized(int c, 
+				ccv_dense_matrix_t* matrix, 
+				ccv_file_info_t* file)
 {
 	assert((matrix && !file) || (!matrix && file));
 	ccv_categorized_t categorized;
 	categorized.c = c;
+
 	if (matrix)
 		categorized.type = CCV_CATEGORIZED_DENSE_MATRIX, categorized.matrix = matrix;
 	else
@@ -2196,8 +2203,10 @@ rnorm.beta: See rnorm.kappa.
 rnorm.kappa: As of b[i] = a[i] / (rnorm.kappa + rnorm.alpha * sum(a, i - rnorm.size / 2, i + rnorm.size / 2)) ^ rnorm.beta
 rnorm.size: The size of local response normalization layer.
 */
-typedef union {
-	struct {
+typedef union 
+{
+	struct 
+	{
 		int count; /**< [convolutional.count] The number of filters for convolutional layer. */
 		int strides; /**< [convolutional.strides] The strides for convolutional filter. */
 		int border; /**< [convolutional.border] The padding border size for the input matrix. */
@@ -2206,18 +2215,24 @@ typedef union {
 		int channels; /**< [convolutional.channels] The number of channels for convolutional filter. */
 		int partition; /**< [convolutional.partition] The number of partitions for convolutional filter. */
 	} convolutional;
-	struct {
+
+	struct 
+	{
 		int strides; /**< [pool.strides] The strides for pooling layer. */
 		int size; /**< [pool.size] The window size for pooling layer. */
 		int border; /**< [pool.border] The padding border size for the input matrix. */
 	} pool;
-	struct {
+
+	struct 
+	{
 		int size; /**< [rnorm.size] The size of local response normalization layer. */
 		float kappa; /**< [rnorm.kappa] As of b[i] = a[i] / (rnorm.kappa + rnorm.alpha * sum(a, i - rnorm.size / 2, i + rnorm.size / 2)) ^ rnorm.beta */
 		float alpha; /**< [rnorm.alpha] See **rnorm.kappa**. */
 		float beta; /**< [rnorm.beta] See **rnorm.kappa**. */
 	} rnorm;
-	struct {
+	
+	struct 
+	{
 		int relu; /**< [full_connect.relu] 0 - ReLU, 1 - no ReLU */
 		int count; /**< [full_connect.count] The number of output nodes for full connect layer. */
 	} full_connect;
@@ -2296,11 +2311,16 @@ typedef struct
 } ccv_convnet_t;
 
 /*
+	学习速率决定每一次batch训练中所产生的权值更新量. 大的学习速率可能导致系统的
+不稳定; 但是小的学习速率导致较长的训练时间，可能收敛速度慢，不过能保证网络的误
+差值不跳出误差表面的低谷而最终趋于最小误差值. 所以一般情况下，倾向于选取较小的
+学习速率以保证系统的稳定性，选取范围一般在[0.01, 1]之间. 
 decay: See learn_rate.
 learn_rate: New velocity = momentum * old velocity - decay * learn_rate * old value + learn_rate * delta, new value = old value + new velocity
 momentum: See learn_rate.
 */
-typedef struct {
+typedef struct 
+{
 	float decay; /**< See **learn_rate**. */
 	float learn_rate; /**< New velocity = **momentum** * old velocity - **decay** * **learn_rate** * old value + **learn_rate** * delta, new value = old value + new velocity */
 	float momentum; /**< See **learn_rate**. */

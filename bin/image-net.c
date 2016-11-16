@@ -100,8 +100,11 @@ int main(int argc, char** argv)
 	assert(r1 && "test-list doesn't exists");
 	char* file = (char*)malloc(1024);
 	int dirlen = (base_dir != 0) ? strlen(base_dir) + 1 : 0;
+
+	// 创建包含64个元素的训练序列tests
 	ccv_array_t* categorizeds = ccv_array_new(sizeof(ccv_categorized_t), 64, 0);
-	
+
+	// 读取训练列表文件的一行
 	while (fscanf(r0, "%d %s", &c, file) != EOF)
 	{
 		char* filename = (char*)ccmalloc(1024);
@@ -111,20 +114,26 @@ int main(int argc, char** argv)
 			strncpy(filename, base_dir, 1024);
 			filename[dirlen - 1] = '/';
 		}
-		
+
+		// 生成全路径名到filename
 		strncpy(filename + dirlen, file, 1024 - dirlen);
 
 		ccv_file_info_t file_info = 
 		{
 			.filename = filename,
 		};
-		
+
+		// 生成带有类别名和图像数据的结构体categorized
 		// imageNet's category class starts from 1, thus, minus 1 to get 0-index
 		ccv_categorized_t categorized = ccv_categorized(c - 1, 0, &file_info);
+
+		// 将带有类别名和图像数据的结构体压栈
 		ccv_array_push(categorizeds, &categorized);
 	}
 	
 	fclose(r0);
+
+	// 创建包含64个元素的测试序列tests
 	ccv_array_t* tests = ccv_array_new(sizeof(ccv_categorized_t), 64, 0);
 	
 	while (fscanf(r1, "%d %s", &c, file) != EOF)
@@ -146,6 +155,8 @@ int main(int argc, char** argv)
 		
 		// imageNet's category class starts from 1, thus, minus 1 to get 0-index
 		ccv_categorized_t categorized = ccv_categorized(c - 1, 0, &file_info);
+
+		// 将带有类别名和图像数据的结构体压栈
 		ccv_array_push(tests, &categorized);
 	}
 	
@@ -158,7 +169,11 @@ int main(int argc, char** argv)
 
 	// 1.首先使用随机函数对每一层间的连接权值矩阵和偏置向量进行随机初始化.
 	// 创建新的卷积网络
-	ccv_convnet_t* convnet = ccv_convnet_new(1, ccv_size(257, 257), model_params, depth);
+	ccv_convnet_t* convnet = 
+		ccv_convnet_new(1, 
+						ccv_size(257, 257), // 图像的输入尺寸
+						model_params, 
+						depth);
 
 	// 校验新创建的卷积网络
 	ccv_convnet_verify(convnet, 1000);
@@ -169,7 +184,7 @@ int main(int argc, char** argv)
 	for (i = 0; i < depth; i++)
 	{
 		layer_params[i].w.decay = 0.0005;
-		layer_params[i].w.learn_rate = 0.01;
+		layer_params[i].w.learn_rate = 0.01; // α,0<α称为学习步长，又称学习算子，值越大，权值调整得越快，在不导致振荡的情况下，α可大一些.
 		layer_params[i].w.momentum = 0.9;
 		layer_params[i].bias.decay = 0;
 		layer_params[i].bias.learn_rate = 0.01;
@@ -192,5 +207,6 @@ int main(int argc, char** argv)
 	// 释放网络
 	ccv_convnet_free(convnet);
 	ccv_disable_cache();
+	
 	return 0;
 }

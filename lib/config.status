@@ -427,7 +427,7 @@ Copyright (C) 2012 Free Software Foundation, Inc.
 This config.status script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it."
 
-ac_pwd='/cygdrive/d/Work/Backup/liuliu-ccv-785aba2/lib'
+ac_pwd='/cygdrive/d/webcms/config/liuliu-ccv-785aba2/lib'
 srcdir='.'
 test -n "$AWK" || AWK=awk
 # The default lists apply if the user does not specify any file.
@@ -583,32 +583,32 @@ echo 'BEGIN {' >"$ac_tmp/subs1.awk" &&
 cat >>"$ac_tmp/subs1.awk" <<\_ACAWK &&
 S["LTLIBOBJS"]=""
 S["LIBOBJS"]=""
-S["DISCFLAGS"]="-msse2 -D HAVE_SSE2"
+S["DISCFLAGS"]="-msse2 -D HAVE_LIBPNG -D HAVE_LIBJPEG -D HAVE_SSE2 -D HAVE_GSL"
 S["EGREP"]="/usr/bin/grep -E"
 S["GREP"]="/usr/bin/grep"
-S["CPP"]="gcc -E"
+S["CPP"]="clang -E"
 S["OBJEXT"]="o"
 S["EXEEXT"]=".exe"
-S["ac_ct_CC"]="gcc"
+S["ac_ct_CC"]=""
 S["CPPFLAGS"]=""
 S["LDFLAGS"]=""
 S["CFLAGS"]="-g -O2"
 S["NVCC"]=""
-S["CC"]="gcc"
+S["CC"]="clang"
 S["CUDA_OBJS"]=""
-S["MKLDFLAGS"]="-lm"
+S["MKLDFLAGS"]="-lm -lpng -ljpeg -lgsl -lgslcblas"
 S["MKCFLAGS"]="-msse2 $(DEFINE_MACROS)"
-S["DEFINE_MACROS"]="-D HAVE_SSE2"
+S["DEFINE_MACROS"]="-D HAVE_LIBPNG -D HAVE_LIBJPEG -D HAVE_SSE2 -D HAVE_GSL"
 S["target_alias"]=""
 S["host_alias"]=""
 S["build_alias"]=""
-S["LIBS"]="-lm "
+S["LIBS"]="-lgslcblas -lm "
 S["ECHO_T"]=""
 S["ECHO_N"]="-n"
 S["ECHO_C"]=""
 S["DEFS"]="-DPACKAGE_NAME=\\\"libccv\\\" -DPACKAGE_TARNAME=\\\"libccv\\\" -DPACKAGE_VERSION=\\\"0.6\\\" -DPACKAGE_STRING=\\\"libccv\\ 0.6\\\" -DPACKAGE_BUGREPORT=\\\"\\\" -DPACKAGE"\
 "_URL=\\\"\\\" -DSTDC_HEADERS=1 -DHAVE_SYS_TYPES_H=1 -DHAVE_SYS_STAT_H=1 -DHAVE_STDLIB_H=1 -DHAVE_STRING_H=1 -DHAVE_MEMORY_H=1 -DHAVE_STRINGS_H=1 -DHAVE_"\
-"INTTYPES_H=1 -DHAVE_STDINT_H=1 -DHAVE_UNISTD_H=1 -DHAVE_LIBM=1"
+"INTTYPES_H=1 -DHAVE_STDINT_H=1 -DHAVE_UNISTD_H=1 -DHAVE_LIBM=1 -DHAVE_LIBGSLCBLAS=1"
 S["mandir"]="${datarootdir}/man"
 S["localedir"]="${datarootdir}/locale"
 S["libdir"]="${exec_prefix}/lib"

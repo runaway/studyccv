@@ -33,11 +33,14 @@ count: The size of params[] C-array.
 return: A new deep convolutional network structs
 */
 ccv_convnet_t* ccv_convnet_new(int use_cwc_accel, 
-							   ccv_size_t input, 
-							   ccv_convnet_layer_param_t params[], 
-							   int count)
+							   ccv_size_t input, // Í¼ÏñµÄÊäÈë³ß´ç
+							   ccv_convnet_layer_param_t params[], // Ö¸¶¨Ã¿Ò»²ãµÄ²ÎÊı 
+							   int count) // params[] C-arrayµÄ³ß´ç == depth
 {
-	ccv_convnet_t* convnet = (ccv_convnet_t*)ccmalloc(sizeof(ccv_convnet_t) + sizeof(ccv_convnet_layer_t) * count + sizeof(ccv_dense_matrix_t*) * count * 2);
+	ccv_convnet_t* convnet = 
+		(ccv_convnet_t*)ccmalloc(sizeof(ccv_convnet_t) + 
+								 sizeof(ccv_convnet_layer_t) * count + 
+								 sizeof(ccv_dense_matrix_t*) * count * 2);
 	convnet->use_cwc_accel = use_cwc_accel;
 	
 #ifdef HAVE_GSL
@@ -61,14 +64,17 @@ ccv_convnet_t* ccv_convnet_new(int use_cwc_accel,
 	ccv_zero(convnet->mean_activity);
 	ccv_convnet_layer_t* layers = convnet->layers;
 	int i, j;
-	
+
+	// °´Éî¶ÈÑ­»· 
 	for (i = 0; i < count; i++)
 	{
+		// ³õÊ¼»¯Ã¿Ò»²ãµÄÀàĞÍ£¬ÊäÈëĞèÇó£¬Êä³öÍøÂçÀàĞÍ½á¹¹Ìå
 		layers[i].type = params[i].type;
 		layers[i].input = params[i].input;
 		layers[i].net = params[i].output;
 		layers[i].reserved = 0;
-		
+
+		// °´²ãÀàĞÍÀ´Ñ¡Ôñ
 		switch (params[i].type)
 		{
 			case CCV_CONVNET_CONVOLUTIONAL:
@@ -77,12 +83,33 @@ ccv_convnet_t* ccv_convnet_new(int use_cwc_accel,
 				assert(params[i].output.convolutional.count % params[i].output.convolutional.partition == 0);
 				assert(params[i].output.convolutional.partition % params[i].input.matrix.partition == 0);
 				assert(params[i].output.convolutional.partition >= params[i].input.matrix.partition);
-				layers[i].wnum = params[i].output.convolutional.rows * params[i].output.convolutional.cols * params[i].output.convolutional.channels / params[i].input.matrix.partition * params[i].output.convolutional.count;
-				layers[i].w = (float*)ccmalloc(sizeof(float) * (layers[i].wnum + params[i].output.convolutional.count));
+
+				// ÉèÖÃ¸Ã²ãµÄÈ¨ÖØÊıÁ¿
+				layers[i].wnum = 
+					params[i].output.convolutional.rows 
+				  * params[i].output.convolutional.cols 
+				  * params[i].output.convolutional.channels 
+				  / params[i].input.matrix.partition 
+				  * params[i].output.convolutional.count;
+
+				// ·ÖÅä¸Ã²ãµÄÈ¨ÖØ¿Õ¼ä
+				layers[i].w = 
+					(float*)ccmalloc(sizeof(float) 
+								   * (layers[i].wnum + params[i].output.convolutional.count));
+
+				// ÉèÖÃ¸Ã²ãµÄÆ«ÖÃÏòÁ¿µØÖ·
 				layers[i].bias = layers[i].w + layers[i].wnum;
 #ifdef HAVE_GSL
+				// 1.Ê×ÏÈÊ¹ÓÃËæ»úº¯Êı¶ÔÃ¿Ò»²ã¼äµÄÁ¬½ÓÈ¨Öµ¾ØÕóºÍÆ«ÖÃÏòÁ¿½øĞĞËæ»ú³õÊ¼»¯.
 				for (j = 0; j < layers[i].wnum; j++)
-					layers[i].w[j] = (gsl_rng_uniform_pos(rng) * 2 - 1) * params[i].glorot / sqrtf(params[i].output.convolutional.rows * params[i].output.convolutional.cols * params[i].output.convolutional.channels / params[i].input.matrix.partition + params[i].output.convolutional.count);
+				{
+					layers[i].w[j] = 
+						(gsl_rng_uniform_pos(rng) * 2 - 1) * params[i].glorot 
+					  / sqrtf(params[i].output.convolutional.rows * params[i].output.convolutional.cols 
+						    * params[i].output.convolutional.channels 
+						    / params[i].input.matrix.partition 
+						    + params[i].output.convolutional.count);
+				}
 #else
 				for (j = 0; j < layers[i].wnum; j++)
 					layers[i].w[j] = 0;
@@ -118,9 +145,11 @@ ccv_convnet_t* ccv_convnet_new(int use_cwc_accel,
 				break;
 		}
 	}
+	
 #ifdef HAVE_GSL
 	gsl_rng_free(rng);
 #endif
+
 	return convnet;
 }
 
@@ -131,7 +160,8 @@ convnet: A deep convolutional network to verify.
 output: The output number of nodes (for the last full connect layer).
 return: 0 if the given deep convolutional network making sense.
 */
-int ccv_convnet_verify(ccv_convnet_t* convnet, int output)
+int ccv_convnet_verify(ccv_convnet_t* convnet, 
+					   int output) // ¶ÔÓÚ×îºóµÄÈ«Á¬½Ó²ãÖ¸¶¨½ÚµãµÄÊä³öÊıÄ¿
 {
 	int i, out_rows, out_cols, out_partition;
 
@@ -155,7 +185,13 @@ int ccv_convnet_verify(ccv_convnet_t* convnet, int output)
 		if (i > 0 && (out_rows != layer->input.matrix.rows || out_cols != layer->input.matrix.cols))
 			return -1;
 
-		ccv_convnet_make_output(layer, layer->input.matrix.rows, layer->input.matrix.cols, &out_rows, &out_cols, &out_partition);
+		// ¸ù¾İÊäÈë¾ØÕóµÄĞĞÁĞ¼ÆËãÉèÖÃÊä³ö¾ØÕóµÄĞĞÁĞºÍ·Ö¸î
+		ccv_convnet_make_output(layer, 
+								layer->input.matrix.rows, 
+								layer->input.matrix.cols, 
+								&out_rows, 
+								&out_cols, 
+								&out_partition);
 	}
 	
 	if (out_rows * out_cols != output)
@@ -1434,6 +1470,7 @@ _ccv_convnet_propagate_loss(ccv_convnet_t* convnet,
 	}
 }
 
+// ?BPËã·¨Ê¹ÓÃÌİ¶ÈÏÂ½µËã·¨¶ÔÍøÂçÖĞµÄ¸÷È¨Öµ½øĞĞ¸üĞÂ£¬Èç¹ûÊ¹ÓÃÅúÁ¿¸üĞÂËã·¨£¬ÉèbatchµÄ´óĞ¡Îªp£¬²ÉÓÃÆ½·½Îó²îºÍ¼ÆËã¹«Ê½£¬ÄÇÃ´Ò»´ÎbatchµÄ×ÜÎó²îÎª
 // in: update_params layer_params batch
 // out: convnet momentum
 static void 
@@ -1629,6 +1666,7 @@ softmaxÄ£ĞÍÊÇlogisticÄ£ĞÍÔÚ¶à·ÖÀàÎÊÌâÉÏµÄÍÆ¹ã£¬ logistic »Ø¹éÊÇÕë¶Ô¶ş·ÖÀàÎÊÌâµÄ
 Èç¹ûÄ³Ò»¸özj´ó¹ıÆäËûz,ÄÇÕâ¸öÓ³ÉäµÄ·ÖÁ¿¾Í±Æ½üÓÚ1,ÆäËû¾Í±Æ½üÓÚ0£¬Ö÷ÒªÓ¦ÓÃ¾ÍÊÇ¶à·Ö
 Àà£¬sigmoidº¯ÊıÖ»ÄÜ·ÖÁ½Àà£¬¶øsoftmaxÄÜ·Ö¶àÀà£¬softmaxÊÇsigmoidµÄÀ©Õ¹¡
 Èç¹ûÀà±ğÖ®¼äÊÇ»¥³âµÄ£¬ÊÊºÏÓÃsoftmax£»Èç¹ûÀà±ğÖ®¼äÔÊĞíÖØµş£¬Ó¦¸ÃÑ¡Ôñk¸ölogistic·ÖÀàÆ÷
+Softmax¾ÍÊÇMIMOµÄSigmoidº¯Êı¡££¨Sigmoidº¯ÊıÊÇMISO£©
 */
 static void _ccv_convnet_compute_softmax(ccv_dense_matrix_t* a, 
 										 ccv_dense_matrix_t** b, 

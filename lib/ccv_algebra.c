@@ -309,7 +309,30 @@ void ccv_scale(ccv_matrix_t* a, ccv_matrix_t** b, int type, double ds)
 	}
 }
 
-void ccv_gemm(ccv_matrix_t* a, ccv_matrix_t* b, double alpha, ccv_matrix_t* c, double beta, int transpose, ccv_matrix_t** d, int type)
+/*
+计算矩阵乘法的函数之一是 cblas_sgemm，使用单精度实数，另外还有对应双精度实数，单精度复数和双精度复数的函数。在此以 cblas_sgemm为例。
+
+函数定义为：
+
+void cblas_sgemm(const enum CBLAS_ORDER Order, 
+				 const enum CBLAS_TRANSPOSE TransA,
+				 const enum CBLAS_TRANSPOSE TransB, 
+				 const int M, const int N, const int K, 
+				 const float alpha, 
+				 const float  *A, const int lda, 
+				 const float  *B, const int ldb,
+				 const float beta, 
+				 float  *C, const int ldc)
+
+*/
+void ccv_gemm(ccv_matrix_t* a, 
+			  ccv_matrix_t* b, 
+			  double alpha, 
+			  ccv_matrix_t* c, 
+			  double beta, 
+			  int transpose, 
+			  ccv_matrix_t** d, 
+			  int type)
 {
 	ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
 	ccv_dense_matrix_t* db = ccv_get_dense_matrix(b);
@@ -333,12 +356,23 @@ void ccv_gemm(ccv_matrix_t* a, ccv_matrix_t* b, double alpha, ccv_matrix_t* c, d
 #if (defined HAVE_CBLAS || defined HAVE_ACCELERATE_FRAMEWORK)
 	switch (CCV_GET_DATA_TYPE(dd->type))
 	{
-		case CCV_32F:
-			cblas_sgemm(CblasRowMajor, (transpose & CCV_A_TRANSPOSE) ? CblasTrans : CblasNoTrans, (transpose & CCV_B_TRANSPOSE) ? CblasTrans : CblasNoTrans, dd->rows, dd->cols, (transpose & CCV_A_TRANSPOSE) ? da->rows : da->cols, alpha, da->data.f32, da->cols, db->data.f32, db->cols, beta, dd->data.f32, dd->cols);
-			break;
-		case CCV_64F:
-			cblas_dgemm(CblasRowMajor, (transpose & CCV_A_TRANSPOSE) ? CblasTrans : CblasNoTrans, (transpose & CCV_B_TRANSPOSE) ? CblasTrans : CblasNoTrans, dd->rows, dd->cols, (transpose & CCV_A_TRANSPOSE) ? da->rows : da->cols, alpha, da->data.f64, da->cols, db->data.f64, db->cols, beta, dd->data.f64, dd->cols);
-			break;
+	case CCV_32F:
+
+		// C = alpha * op(A) * op(B) + beta * C
+		cblas_sgemm(CblasRowMajor, 
+					(transpose & CCV_A_TRANSPOSE) ? CblasTrans : CblasNoTrans, 
+					(transpose & CCV_B_TRANSPOSE) ? CblasTrans : CblasNoTrans, 
+					dd->rows, dd->cols, 
+					(transpose & CCV_A_TRANSPOSE) ? da->rows : da->cols, 
+					alpha, 
+					da->data.f32, da->cols, 
+					db->data.f32, db->cols, 
+					beta, 
+					dd->data.f32, dd->cols);
+		break;
+	case CCV_64F:
+		cblas_dgemm(CblasRowMajor, (transpose & CCV_A_TRANSPOSE) ? CblasTrans : CblasNoTrans, (transpose & CCV_B_TRANSPOSE) ? CblasTrans : CblasNoTrans, dd->rows, dd->cols, (transpose & CCV_A_TRANSPOSE) ? da->rows : da->cols, alpha, da->data.f64, da->cols, db->data.f64, db->cols, beta, dd->data.f64, dd->cols);
+		break;
 	}
 #else
 	assert(0 && "You need a BLAS compatible library for this function, e.g. libatlas.");

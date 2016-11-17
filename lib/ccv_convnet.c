@@ -437,6 +437,7 @@ _ccv_convnet_convolutional_forward_propagate_fallback(ccv_convnet_layer_t* layer
 													  int ch_per_partition, 
 													  int count_per_partition)
 {
+	// k从0~count-1循环
 	parallel_for(k, count) 
 	{
 		int i, j, x, y, c;
@@ -449,14 +450,16 @@ _ccv_convnet_convolutional_forward_propagate_fallback(ccv_convnet_layer_t* layer
 		for (i = 0; i < db->rows; i++)
 		{
 			int comy = ccv_max(i * strides - border, 0) - (i * strides - border);
-			int maxy = kernel_rows - comy - (i * strides + kernel_rows - ccv_min(a->rows + border, i * strides + kernel_rows));
+			int maxy = kernel_rows - comy - (i * strides + kernel_rows 
+					  - ccv_min(a->rows + border, i * strides + kernel_rows));
 			comy *= ch_per_partition * kernel_cols;
 
 			for (j = 0; j < db->cols; j++)
 			{
 				float v = bias;
 				int comx = ccv_max(j * strides - border, 0) - (j * strides - border);
-				int maxx = kernel_cols - comx - (j * strides + kernel_cols - ccv_min(a->cols + border, j * strides + kernel_cols));
+				int maxx = kernel_cols - comx 
+					- (j * strides + kernel_cols - ccv_min(a->cols + border, j * strides + kernel_cols));
 				float* w = layer_w + comx * ch_per_partition + comy;
 				float* apz = ap + ccv_max(j * strides - border, 0) * ch;
 
@@ -465,8 +468,12 @@ _ccv_convnet_convolutional_forward_propagate_fallback(ccv_convnet_layer_t* layer
 				for (y = 0; y < maxy; y++)
 				{
 					for (x = 0; x < maxx; x++)
+					{
 						for (c = 0; c < ch_per_partition; c++)
+						{
 							v += w[x * ch_per_partition + c] * apz[x * ch + c];
+						}
+					}
 
 					w += kernel_cols * ch_per_partition;
 					apz += a->cols * ch;
@@ -488,17 +495,30 @@ _ccv_convnet_convolutional_forward_propagate(ccv_convnet_layer_t* layer,
 											 ccv_dense_matrix_t** b)
 {
 	int rows, cols, partition;
+
+	// 输入a 31,31 15,15 7,7
 	ccv_convnet_make_output(layer, a->rows, a->cols, &rows, &cols, &partition);
+
+	// 获取该层的各个参数
 	int ch = layer->net.convolutional.channels;
+
+	// 32 32 64
 	int count = layer->net.convolutional.count;
 	int strides = layer->net.convolutional.strides;
+
+	// convolutional.border = 1, 2
 	int border = layer->net.convolutional.border;
+
+	// 获取卷积核的行列
+	// 对应输出5,5
 	int kernel_rows = layer->net.convolutional.rows;
 	int kernel_cols = layer->net.convolutional.cols;
 	int type = CCV_32F | count;
 	
 	assert(CCV_GET_CHANNEL(a->type) == ch);
 	assert(CCV_GET_DATA_TYPE(a->type) == CCV_32F);
+
+	// 给目标矩阵分配空间
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, rows, cols, type, type, 0);
 	int ch_per_partition = ch / partition;
 	int count_per_partition = count / partition;
@@ -513,11 +533,20 @@ _ccv_convnet_convolutional_forward_propagate(ccv_convnet_layer_t* layer,
 #elif defined(HAVE_NEON)
 	_ccv_convnet_convolutional_forward_propagate_neon(layer, a, db, rows, cols, ch, count, strides, border, kernel_rows, kernel_cols, ch_per_partition, count_per_partition);
 #else
-	_ccv_convnet_convolutional_forward_propagate_fallback(layer, a, db, rows, cols, ch, count, strides, border, kernel_rows, kernel_cols, ch_per_partition, count_per_partition);
+	_ccv_convnet_convolutional_forward_propagate_fallback(layer, 
+														  a, 
+														  db, 
+														  rows, cols, ch, 
+														  count, strides, border, 
+														  kernel_rows, kernel_cols, 
+														  ch_per_partition, count_per_partition);
 #endif
 }
 
-static void _ccv_convnet_full_connect_forward_propagate(ccv_convnet_layer_t* layer, ccv_dense_matrix_t* a, ccv_dense_matrix_t** b)
+static void 
+_ccv_convnet_full_connect_forward_propagate(ccv_convnet_layer_t* layer, 
+											ccv_dense_matrix_t* a, 
+											ccv_dense_matrix_t** b)
 {
 	assert(CCV_GET_DATA_TYPE(a->type) == CCV_32F);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, layer->net.full_connect.count, 1, CCV_32F | CCV_C1, CCV_32F | CCV_C1, 0);
@@ -525,23 +554,48 @@ static void _ccv_convnet_full_connect_forward_propagate(ccv_convnet_layer_t* lay
 	int rows = a->rows, cols = a->cols;
 	// reshape a for gemm
 	assert(a->step == a->cols * CCV_GET_DATA_TYPE_SIZE(a->type) * ch);
+
+	// 设置a的行数为原行、列、通道数的乘积，列数为1
 	a->rows = rows * cols * ch, a->cols = 1, a->type = (a->type - ch) | CCV_C1;
 	assert(a->rows * db->rows == layer->wnum);
+
+	// 设置a的步长为a->type
 	a->step = a->cols * CCV_GET_DATA_TYPE_SIZE(a->type);
 	int i;
+
+	// 定义目标矩阵偏置数据指针bptr
 	float* bptr = db->data.f32;
+
+	// 设置目标矩阵每一行的偏置
 	for (i = 0; i < db->rows; i++)
 		bptr[i] = layer->bias[i];
+
+	// 定义目标矩阵权重矩阵dw
 	ccv_dense_matrix_t dw = ccv_dense_matrix(db->rows, a->rows, CCV_32F | CCV_C1, layer->w, 0);
+
+	// 计算db = dw * a
 	ccv_gemm(&dw, a, 1, db, 1, 0, (ccv_matrix_t**)&db, 0); // supply db as matrix C is allowed
+
+	// 如果全连接层的类型标志不是relu,0 - ReLU, 1 - no ReLU
 	if (layer->net.full_connect.relu)
+	{
 		for (i = 0; i < db->rows; i++)
+		{
+			// 确保目标矩阵偏置的每一行不小于零
 			bptr[i] = ccv_max(0, bptr[i]); // relu
+		}
+	}
+
+	// 设置源矩阵的行、列、类型、步长
 	a->rows = rows, a->cols = cols, a->type = (a->type - CCV_GET_CHANNEL(a->type)) | ch;
 	a->step = a->cols * CCV_GET_DATA_TYPE_SIZE(a->type) * CCV_GET_CHANNEL(a->type);
 }
 
-static void _ccv_convnet_rnorm_forward_propagate(ccv_convnet_layer_t* layer, ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, ccv_dense_matrix_t** denoms)
+static void 
+_ccv_convnet_rnorm_forward_propagate(ccv_convnet_layer_t* layer, 
+									 ccv_dense_matrix_t* a, 
+									 ccv_dense_matrix_t** b, 
+									 ccv_dense_matrix_t** denoms)
 {
 	int rows, cols, partition;
 	ccv_convnet_make_output(layer, a->rows, a->cols, &rows, &cols, &partition);
@@ -558,10 +612,12 @@ static void _ccv_convnet_rnorm_forward_propagate(ccv_convnet_layer_t* layer, ccv
 	float* ap = a->data.f32;
 	float* bp = db->data.f32;
 	int ch_per_partition = ch / partition;
+	
 	if (denoms)
 	{
 		ccv_dense_matrix_t* ddenoms = *denoms = ccv_dense_matrix_renew(*denoms, rows, cols, type, type, 0);
 		float* dp = ddenoms->data.f32;
+
 		for (i = 0; i < db->rows; i++)
 		{
 			for (j = 0; j < db->cols; j++)
@@ -570,17 +626,24 @@ static void _ccv_convnet_rnorm_forward_propagate(ccv_convnet_layer_t* layer, ccv
 					{
 						float v = ap[j * ch + p * ch_per_partition + k];
 						float denom = 0;
+
 						for (x = ccv_max(k - way, 0); x <= ccv_min(k + way, ch_per_partition - 1); x++)
 							denom += ap[j * ch + p * ch_per_partition + x] * ap[j * ch + p * ch_per_partition + x];
+
 						denom = kappa + alpha * denom;
 						dp[j * ch + p * ch_per_partition + k] = denom;
+
+						// b = v * (kappa + alpha * ||a||) ^ -beta
 						bp[j * ch + p * ch_per_partition + k] = v * powf(denom, -beta);
 					}
+					
 			ap += a->cols * ch;
 			dp += ddenoms->cols * ch;
 			bp += db->cols * ch;
 		}
-	} else {
+	} 
+	else 
+	{
 		for (i = 0; i < db->rows; i++)
 		{
 			for (j = 0; j < db->cols; j++)
@@ -589,11 +652,16 @@ static void _ccv_convnet_rnorm_forward_propagate(ccv_convnet_layer_t* layer, ccv
 					{
 						float v = ap[j * ch + p * ch_per_partition + k];
 						float denom = 0;
+						
 						for (x = ccv_max(k - way, 0); x <= ccv_min(k + way, ch_per_partition - 1); x++)
 							denom += ap[j * ch + p * ch_per_partition + x] * ap[j * ch + p * ch_per_partition + x];
+						
 						denom = kappa + alpha * denom;
+
+						// b = v * (kappa + alpha * ||a||) ^ -beta
 						bp[j * ch + p * ch_per_partition + k] = v * powf(denom, -beta);
 					}
+					
 			ap += a->cols * ch;
 			bp += db->cols * ch;
 		}
@@ -607,8 +675,14 @@ _ccv_convnet_max_pool_forward_propagate(ccv_convnet_layer_t* layer,
 {
 	int rows, cols, partition;
 	ccv_convnet_make_output(layer, a->rows, a->cols, &rows, &cols, &partition);
+
+	// 获取池化尺寸
+	// pool.size = 3
 	int size = layer->net.pool.size;
 	int strides = layer->net.pool.strides;
+
+	// 获取池化边界
+	// pool.border = 0
 	int border = layer->net.pool.border;
 	assert(CCV_GET_DATA_TYPE(a->type) == CCV_32F);
 	int ch = CCV_GET_CHANNEL(a->type);
@@ -617,26 +691,46 @@ _ccv_convnet_max_pool_forward_propagate(ccv_convnet_layer_t* layer,
 	int i, j, k, x, y;
 	float* ap = a->data.f32;
 	float* bp = db->data.f32;
+	
 	for (i = 0; i < db->rows; i++)
 	{
+		// 计算开始和结束的纵坐标
 		const int start_y = ccv_max(i * strides - border, 0) - (i * strides - border);
 		const int end_y = size + ccv_min(i * strides + size - border, a->rows) - (i * strides + size - border);
+		
 		for (j = 0; j < db->cols; j++)
 		{
+			// 计算开始和结束的横坐标
 			const int start_x = ccv_max(j * strides - border, 0) - (j * strides - border);
 			const int end_x = size + ccv_min(j * strides + size - border, a->cols) - (j * strides + size - border);
+
 			for (k = 0; k < ch; k++)
 			{
 				float v = 0;
+				
 				for (y = start_y; y < end_y; y++)
+				{
 					for (x = start_x; x < end_x; x++)
+					{
 						if (x == start_x && y == start_y)
+						{
+							// 如果在起点则直接取源矩阵相应元素的值	
 							v = ap[(j * strides - border + x + (y - border) * a->cols) * ch + k];
+						}
 						else if (ap[(j * strides - border + x + (y - border) * a->cols) * ch + k] > v)
+						{
+							// 如果不在起点则取池内的最大值
 							v = ap[(j * strides - border + x + (y - border) * a->cols) * ch + k];
+						}
+					}
+				}
+
+				// 设置目标矩阵的相应元素
 				bp[j * ch + k] = v;
 			}
 		}
+
+		// 指向下一行
 		ap += a->cols * ch * strides;
 		bp += db->cols * ch;
 	}
@@ -656,23 +750,35 @@ static void _ccv_convnet_average_pool_forward_propagate(ccv_convnet_layer_t* lay
 	int i, j, k, x, y;
 	float* ap = a->data.f32;
 	float* bp = db->data.f32;
+	
 	for (i = 0; i < db->rows; i++)
 	{
 		const int start_y = ccv_max(i * strides - border, 0) - (i * strides - border);
 		const int end_y = size + ccv_min(i * strides + size - border, a->rows) - (i * strides + size - border);
+
 		for (j = 0; j < db->cols; j++)
 		{
 			const int start_x = ccv_max(j * strides - border, 0) - (j * strides - border);
 			const int end_x = size + ccv_min(j * strides + size - border, a->cols) - (j * strides + size - border);
+
 			for (k = 0; k < ch; k++)
 			{
 				float v = 0;
+
 				for (y = start_y; y < end_y; y++)
+				{
 					for (x = start_x; x < end_x; x++)
+					{
+						// 计算池内所有元素的和
 						v += ap[(j * strides - border + x + (y - border) * a->cols) * ch + k];
+					}
+				}
+
+				// 计算池内所有元素的平均值
 				bp[j * ch + k] = v / ((end_x - start_x) * (end_y - start_y));
 			}
 		}
+		
 		ap += a->cols * ch * strides;
 		bp += db->cols * ch;
 	}
@@ -1597,10 +1703,10 @@ static ccv_convnet_t* _ccv_convnet_update_new(ccv_convnet_t* convnet)
 	// 初始化update_params
 	update_params->reserved = 0;
 
-	// 设置layers指针
+	// 设置layers指针指向下一层
 	update_params->layers = (ccv_convnet_layer_t*)(update_params + 1);
 
-	// 设置隐藏层和输出层
+	// 设置隐藏层和输出层的元素为0
 	update_params->acts = (ccv_dense_matrix_t**)(update_params->layers + convnet->count);
 	memset(update_params->acts, 0, sizeof(ccv_dense_matrix_t*) * convnet->count);
 
@@ -1779,7 +1885,8 @@ void ccv_convnet_supervised_train(ccv_convnet_t* convnet,
 
 	for (i = 0; i < categorizeds->rnum; i++)
 		idx[i] = i;
-	
+
+	// 将idx里面元素的顺序打乱
 	gsl_ran_shuffle(rng, idx, categorizeds->rnum, sizeof(int));
 
 	// 最后一层必须是全连接，因此我们把它用作softmax层

@@ -1,4 +1,3 @@
----- _ccv_dpm_collect_best Matches (3 in 1 files) ----
-Ccv_dpm.c (lib):_ccv_dpm_collect_best(ccv_dense_matrix_t* image, 
-Ccv_dpm.c (lib):		posv[i] = _ccv_dpm_collect_best(image, model, bboxes[i], params.include_overlap, params.detector);
-Ccv_dpm.c (lib):				posv[i] = _ccv_dpm_collect_best(image, 
+---- 首先使用随机函数 Matches (2 in 2 files) ----
+Ccv_convnet.c (lib):1.首先使用随机函数对每一层间的连接权值矩阵和偏置向量进行随机初始化.
+Image-net.c (bin):	// 1.首先使用随机函数对每一层间的连接权值矩阵和偏置向量进行随机初始化.

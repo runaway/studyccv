@@ -189,12 +189,12 @@ void ccv_matrix_free_immediately(ccv_matrix_t* mat)
 		ccfree(csm);
 	}
 }
-
+#if 0
 __stdcall void ccv_matrix_free0()
 {
     return;
 }
-
+#endif
 
 void ccv_matrix_free(ccv_matrix_t* mat)
 {

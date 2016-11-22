@@ -1803,8 +1803,7 @@ _ccv_dpm_initialize_root_rectangle_estimator(ccv_dpm_mixture_model_t* model,
 			gsl_multifit_linear(X, y[j], z, cov, &chisq, workspace);
 
 			// 获取z(j0)到根分类器的alpha[j]
-			discard_estimating_constant
-			root_classifier->alpha[j] = 
+			discard_estimating_constant	root_classifier->alpha[j] = 
 				params.discard_estimating_constant ? 0 : gsl_vector_get(z, 0);
 
 			for (k = 0; k < root_classifier->count; k++)

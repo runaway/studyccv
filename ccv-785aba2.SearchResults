@@ -1,3 +1,13 @@
----- 首先使用随机函数 Matches (2 in 2 files) ----
-Ccv_convnet.c (lib):1.首先使用随机函数对每一层间的连接权值矩阵和偏置向量进行随机初始化.
-Image-net.c (bin):	// 1.首先使用随机函数对每一层间的连接权值矩阵和偏置向量进行随机初始化.
+---- convolutional.cols Matches (12 in 3 files) ----
+Ccv.h (lib):convolutional.cols: The number of columns for convolutional filter.
+Ccv.h (lib):		int cols; /**< [convolutional.cols] The number of columns for convolutional filter. */
+Ccv_convnet.c (lib):				  * params[i].output.convolutional.cols 
+Ccv_convnet.c (lib):					  / sqrtf(params[i].output.convolutional.rows * params[i].output.convolutional.cols 
+Ccv_convnet.c (lib):	int kernel_cols = layer->net.convolutional.cols;
+Ccv_convnet.c (lib):	int kernel_cols = layer->net.convolutional.cols;
+Ccv_convnet.c (lib):	int kernel_cols = layer->net.convolutional.cols;
+Ccv_convnet.c (lib):					sqlite3_bind_int(layer_params_insert_stmt, 9, layer->net.convolutional.cols);
+Ccv_convnet.c (lib):						layer_param.output.convolutional.cols = sqlite3_column_int(layer_params_stmt, 7);
+Ccv_convnet_inl.h (lib\inl):		assert(layer->net.convolutional.cols % 2);
+Ccv_convnet_inl.h (lib\inl):		assert((input_cols + layer->net.convolutional.border * 2 - layer->net.convolutional.cols) % layer->net.convolutional.strides == 0);
+Ccv_convnet_inl.h (lib\inl):			     - layer->net.convolutional.cols + layer->net.convolutional.strides - 1) 

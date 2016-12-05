@@ -581,7 +581,7 @@ _ccv_convnet_full_connect_forward_propagate(ccv_convnet_layer_t* layer,
 	{
 		for (i = 0; i < db->rows; i++)
 		{
-			// 确保目标矩阵偏置的每一行不小于零
+			// 确保目标矩阵偏置的每一行不小于零,f(x)=max(0,x)
 			bptr[i] = ccv_max(0, bptr[i]); // relu
 		}
 	}
@@ -1035,12 +1035,16 @@ void ccv_convnet_classify(ccv_convnet_t* convnet,
 		assert(rows == convnet->input.height || cols == convnet->input.width);
 		assert(rows <= a[i]->rows && cols <= a[i]->cols);
 		ccv_dense_matrix_t* slice = 0;
+
+		// 将输入图像a划分到slice
 		ccv_slice(a[i], (ccv_matrix_t**)&slice, CCV_32F, (a[i]->rows - rows) / 2, (a[i]->cols - cols) / 2, rows, cols);
 		ccv_dense_matrix_t* mean_activity = 0;
 
-		// 
+		// 放大平均活动矩阵到可减
 		// scale mean activity up to be substractable (from this one, the CPU implementation is an approximation of GPU implementation)
 		ccv_resample(convnet->mean_activity, &mean_activity, 0, rows, cols, CCV_INTER_CUBIC);
+
+		// b = slice - mean_activity
 		ccv_subtract(slice, mean_activity, (ccv_matrix_t**)b, CCV_32F);
 		ccv_matrix_free(mean_activity);
 		ccv_matrix_free(slice);
@@ -1079,21 +1083,40 @@ void ccv_convnet_classify(ccv_convnet_t* convnet,
 			int offsets[5][2] = 
 			{
 				{0, 0},
+
 				{cols - convnet->layers[scan + 1].input.matrix.cols, 0},
-				{(cols - convnet->layers[scan + 1].input.matrix.cols) / 2, (rows - convnet->layers[scan + 1].input.matrix.rows) / 2},
+
+				{(cols - convnet->layers[scan + 1].input.matrix.cols) / 2, 
+				 (rows - convnet->layers[scan + 1].input.matrix.rows) / 2},
+
 				{0, rows - convnet->layers[scan + 1].input.matrix.rows},
-				{cols - convnet->layers[scan + 1].input.matrix.cols, rows - convnet->layers[scan + 1].input.matrix.rows},
+
+				{cols - convnet->layers[scan + 1].input.matrix.cols, 
+				 rows - convnet->layers[scan + 1].input.matrix.rows},
 			};
 			
 			for (k = 0; k < 5; k++)
 			{
 				ccv_dense_matrix_t* input = 0;
 				ccv_convnet_layer_t* layer = convnet->layers + scan + 1;
-				ccv_slice(b[scan + 1], (ccv_matrix_t**)&input, CCV_32F, offsets[k][1], offsets[k][0], layer->input.matrix.rows, layer->input.matrix.cols);
+
+				// 将b[scan + 1]按offsets定义的几个关键点划分到input
+				ccv_slice(b[scan + 1], 
+						  (ccv_matrix_t**)&input, 
+						  CCV_32F, 
+						  offsets[k][1], 
+						  offsets[k][0], 
+						  layer->input.matrix.rows, 
+						  layer->input.matrix.cols);
 
 				// 拷贝最后一层用作全连接计算
 				// copy the last layer for full connect compute
-				b[full_connect] = ccv_dense_matrix_new(convnet->layers[full_connect].input.matrix.rows, convnet->layers[full_connect].input.matrix.cols, CCV_NO_DATA_ALLOC | CCV_32F | convnet->layers[full_connect].input.matrix.channels, c->data.f32 + (t * 5 + k) * convnet->layers[full_connect].input.node.count, 0);
+				b[full_connect] = 
+					ccv_dense_matrix_new(convnet->layers[full_connect].input.matrix.rows, 
+										 convnet->layers[full_connect].input.matrix.cols, 
+										 CCV_NO_DATA_ALLOC | CCV_32F | convnet->layers[full_connect].input.matrix.channels, 
+										 c->data.f32 + (t * 5 + k) * convnet->layers[full_connect].input.node.count, 
+										 0);
 
 				// 从最后一个卷积层循环到全连接层
 				for (j = scan + 1; j < full_connect; j++)
@@ -1144,7 +1167,7 @@ void ccv_convnet_classify(ccv_convnet_t* convnet,
 		float* r = softmax->data.f32;
 		assert(tops <= softmax->cols);
 
-		// 从第0层循环到tops层, tops = 5
+		// tops = 5
 		for (j = 0; j < tops; j++)
 		{
 			float max_val = -1;

@@ -1,13 +1,42 @@
----- convolutional.cols Matches (12 in 3 files) ----
-Ccv.h (lib):convolutional.cols: The number of columns for convolutional filter.
-Ccv.h (lib):		int cols; /**< [convolutional.cols] The number of columns for convolutional filter. */
-Ccv_convnet.c (lib):				  * params[i].output.convolutional.cols 
-Ccv_convnet.c (lib):					  / sqrtf(params[i].output.convolutional.rows * params[i].output.convolutional.cols 
-Ccv_convnet.c (lib):	int kernel_cols = layer->net.convolutional.cols;
-Ccv_convnet.c (lib):	int kernel_cols = layer->net.convolutional.cols;
-Ccv_convnet.c (lib):	int kernel_cols = layer->net.convolutional.cols;
-Ccv_convnet.c (lib):					sqlite3_bind_int(layer_params_insert_stmt, 9, layer->net.convolutional.cols);
-Ccv_convnet.c (lib):						layer_param.output.convolutional.cols = sqlite3_column_int(layer_params_stmt, 7);
-Ccv_convnet_inl.h (lib\inl):		assert(layer->net.convolutional.cols % 2);
-Ccv_convnet_inl.h (lib\inl):		assert((input_cols + layer->net.convolutional.border * 2 - layer->net.convolutional.cols) % layer->net.convolutional.strides == 0);
-Ccv_convnet_inl.h (lib\inl):			     - layer->net.convolutional.cols + layer->net.convolutional.strides - 1) 
+---- relu Matches (42 in 8 files) ----
+Ccv.h (lib):full_connect.relu: 0 - ReLU, 1 - no ReLU
+Ccv.h (lib):		int relu; /**< [full_connect.relu] 0 - ReLU, 1 - no ReLU */
+Ccv_convnet.c (lib):	// 在最后一层上不能使能relu
+Ccv_convnet.c (lib):	// you cannot enable relu on the last layer
+Ccv_convnet.c (lib):	if (convnet->layers[convnet->count - 1].net.full_connect.relu)
+Ccv_convnet.c (lib):	// 如果全连接层的类型标志不是relu,0 - ReLU, 1 - no ReLU
+Ccv_convnet.c (lib):	if (layer->net.full_connect.relu)
+Ccv_convnet.c (lib):			bptr[i] = ccv_max(0, bptr[i]); // relu
+Ccv_convnet.c (lib):	if (layer->net.full_connect.relu)
+Ccv_convnet.c (lib):				bptr[j] = ccv_max(0, bptr[j]); // relu
+Ccv_convnet.c (lib):				{ /* when np is bigger than 0, relu continues to update the weight, otherwise it stops */
+Ccv_convnet.c (lib):					{ /* when np is bigger than 0, relu continues to update the weight, otherwise it stops */
+Ccv_convnet.c (lib):	if (layer->net.full_connect.relu)
+Ccv_convnet.c (lib):说不上谁比谁好，对于隐含层的激活函数，可以选择sigmoid、tanh、relu等多种激活函数. 
+Ccv_convnet.c (lib):			"output_size INTEGER, output_kappa REAL, output_alpha REAL, output_beta REAL, output_relu INTEGER);"
+Ccv_convnet.c (lib):			"output_size, output_kappa, output_alpha, output_beta, output_relu) VALUES "
+Ccv_convnet.c (lib):			"$output_size, $output_kappa, $output_alpha, $output_beta, $output_relu);"; // 18
+Ccv_convnet.c (lib):					sqlite3_bind_int(layer_params_insert_stmt, 19, layer->net.full_connect.relu);
+Ccv_convnet.c (lib):			"output_size, output_kappa, output_alpha, output_beta, output_relu FROM layer_params ORDER BY layer ASC;"; // 18
+Ccv_convnet.c (lib):						layer_param.output.full_connect.relu = sqlite3_column_int(layer_params_stmt, 17);
+Cifar-10.c (bin):					.relu = 0,
+Convnet.tests.c (test\unit):				.relu = 0,
+Convnet.tests.c (test\unit):				.relu = 0,
+Convnet.tests.c (test\unit):				.relu = 0,
+Convnet.tests.c (test\unit):					.relu = 0,
+Cwc-backwards.c (bin\cuda):					.relu = 1,
+Cwc-backwards.c (bin\cuda):					.relu = 1,
+Cwc-backwards.c (bin\cuda):					.relu = 0,
+Cwc-bench.c (bin\cuda):					.relu = 1,
+Cwc-bench.c (bin\cuda):					.relu = 1,
+Cwc-bench.c (bin\cuda):					.relu = 0,
+Cwc-bench.c (bin\cuda):					.relu = 1,
+Cwc-bench.c (bin\cuda):					.relu = 1,
+Cwc-bench.c (bin\cuda):					.relu = 0,
+Cwc-bench.c (bin\cuda):					.relu = 1,
+Cwc-bench.c (bin\cuda):					.relu = 1,
+Cwc-bench.c (bin\cuda):					.relu = 0,
+Cwc-verify.c (bin\cuda):					.relu = 1,
+Cwc-verify.c (bin\cuda):					.relu = 1,
+Cwc-verify.c (bin\cuda):					.relu = 0,
+Cwc_internal.h (lib\cuda):__global__ static void cwc_kern_relu_backward_propagate(const int batch,

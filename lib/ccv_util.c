@@ -609,12 +609,15 @@ void ccv_slice(ccv_matrix_t* a,
 	{
 		// 获取原矩阵的指针da
 		ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
+#if 1
+		ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(128, "ccv_slice(%d,%d,%d,%d)", y, x, rows, cols), da->sig, CCV_EOF_SIGN);
+#else
 		ccv_declare_derived_signature(sig, 
 									  da->sig != 0, 
 									  ccv_sign_with_format(128, "ccv_slice(%d,%d,%d,%d)", y, x, rows, cols), 
 									  da->sig, 
 									  CCV_EOF_SIGN);
-		
+#endif		
 		btype = (btype == 0) ? CCV_GET_DATA_TYPE(da->type) | CCV_GET_CHANNEL(da->type) : CCV_GET_DATA_TYPE(btype) | CCV_GET_CHANNEL(da->type);
 
 		// 创建目标矩阵b
